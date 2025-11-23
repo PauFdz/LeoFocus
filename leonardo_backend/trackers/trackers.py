@@ -8,8 +8,9 @@ import os
 # -----------------------------
 # CONFIGURAZIONE APPLICAZIONI
 # -----------------------------
-DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp"]
+DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
 PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron"]
+BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok"]
 
 APP_CATEGORIES = {
     "browser": ["Safari", "Chrome", "Firefox", "Edge"],
@@ -137,6 +138,17 @@ def get_document_name(window_name):
             return window_name.split(" – ")[0]
 
         return window_name
+
+
+def is_browser_distraction(window_name):
+    # Controlla se la finestra è un browser con tab distrattiva
+    doc_name = get_document_name(window_name)
+    if any(browser in window_name for browser in ["Chrome", "Safari", "Firefox", "Edge"]):
+        for keyword in BROWSER_DISTRACTIONS:
+            if keyword.lower() in doc_name.lower():
+                return True
+    return False
+
 # -----------------------------
 # MONITOR WINDOW
 # -----------------------------
@@ -177,8 +189,17 @@ def monitor_active_window():
 
             # conteggio multitasking: switch tra produttive e distrattive
             if last:
-                last_cat = "productive" if last in PRODUCTIVE_APPS else "distracting" if last in DISTRACTING_APPS else "other"
-                curr_cat = "productive" if current in PRODUCTIVE_APPS else "distracting" if current in DISTRACTING_APPS else "other"
+                # Determina la categoria considerando anche tab browser distrattivi
+                def get_app_category(win):
+                    if win in PRODUCTIVE_APPS:
+                        return "productive"
+                    if win in DISTRACTING_APPS or is_browser_distraction(win):
+                        return "distracting"
+                    return "other"
+
+                last_cat = get_app_category(last)
+                curr_cat = get_app_category(current)
+
                 if last_cat != curr_cat and last_cat != "other" and curr_cat != "other":
                     activity_state["productive_switches"] += 1
 
@@ -253,10 +274,18 @@ def get_all_windows():
 # -----------------------------
 # CATEGORIZZA APP
 # -----------------------------
-def categorize_app(app_name):
+def categorize_app(app_name, doc_name=None):
+    # Controllo app “normali”
     for category, apps in APP_CATEGORIES.items():
         if app_name in apps:
             return category
+
+    # Se è un browser, guarda anche il titolo della scheda
+    if app_name in ["Safari", "Chrome", "Firefox", "Edge"] and doc_name:
+        for keyword in BROWSER_DISTRACTIONS:
+            if keyword.lower() in doc_name.lower():
+                return "distracting"
+
     return "other"
 
 # -----------------------------
@@ -292,7 +321,8 @@ def report_loop():
         for w, t in activity_state["window_times"].items():
             bg_time = activity_state["window_background_time"].get(w, 0)
             reading_time = activity_state["reading_time"].get(w, 0)
-            category = categorize_app(w)
+            doc_name = get_document_name(w)
+            category = categorize_app(w, doc_name=doc_name)
             opens = activity_state["window_open_count"].get(w, 0)
             doc_name = get_document_name(w)
             clicks = activity_state["click_per_app"].get(w, 0)
@@ -323,7 +353,6 @@ def report_loop():
         activity_state["window_switches"] = 0
         activity_state["scroll_events"] = 0
         activity_state["key_combinations"] = {}
-        activity_state["productive_switches"] = 0
 
 # -----------------------------
 # MAIN
