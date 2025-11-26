@@ -370,9 +370,21 @@ if __name__ == "__main__":
 
     try:
         report_loop()
+
     except KeyboardInterrupt:
         print("\n🛑 User stopped monitoring. Generating summary...")
-        from summarize_activity import summarize_activity
-        summary = summarize_activity(activity_state)
-        import pprint
-        pprint.pprint(summary)
+
+        # IMPORT qui (non sopra)
+        from local_summarizer import summarize_activity_with_llm
+
+        # chiudi sessione
+        activity_state["session_end"] = time.time()
+
+        # genera testo
+        print("\n🛑 User stopped monitoring. Generating summary...\n")
+
+        activity_state["session_end"] = time.time()
+
+        summary = summarize_activity_with_llm(activity_state)
+        print("\n--- SUMMARY ---\n")
+        print(summary)
