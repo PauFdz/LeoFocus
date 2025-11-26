@@ -1,9 +1,33 @@
+# Python
 __pycache__/
-*.pyc
-.env
-.env.*
-.vscode/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 venv/
+ENV/
 build/
 dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Models - DON'T COMMIT THESE (too large for git)
+models/*.gguf
+models/*.bin
+models/*.safetensors
+
+# Keep the models folder structure but not the files
+!models/.gitkeep
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
