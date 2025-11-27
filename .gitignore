@@ -22,7 +22,7 @@ leonardo_backend/models/*.gguf
 leonardo_backend/models/*.bin
 leonardo_backend/models/*.safetensors
 leonardo_backend/models/*/  # Ignore all subdirectories in models (where transformers cache goes)
-
+leonardo_backend/models/tinyllama-cache/
 
 # OS
 .DS_Store
