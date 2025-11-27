@@ -18,10 +18,11 @@ dist/
 *.swo
 
 # Models - DON'T COMMIT THESE (too large for git)
-models/*.gguf
-models/*.bin
-models/*.safetensors
-models/*/  # Ignore all subdirectories in models (where transformers cache goes)
+leonardo_backend/models/*.gguf
+leonardo_backend/models/*.bin
+leonardo_backend/models/*.safetensors
+leonardo_backend/models/*/  # Ignore all subdirectories in models (where transformers cache goes)
+
 
 # OS
 .DS_Store
