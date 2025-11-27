@@ -1,9 +1,32 @@
+# Python
 __pycache__/
-*.pyc
-.env
-.env.*
-.vscode/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
 venv/
+ENV/
 build/
 dist/
+*.egg-info/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Models - DON'T COMMIT THESE (too large for git)
+leonardo_backend/models/*.gguf
+leonardo_backend/models/*.bin
+leonardo_backend/models/*.safetensors
+leonardo_backend/models/*/  # Ignore all subdirectories in models (where transformers cache goes)
+
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
 *.log
