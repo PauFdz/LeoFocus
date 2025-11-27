@@ -152,7 +152,7 @@ def ask_llm_ollama(prompt: str, max_tokens: int = 100, temperature: float = 0.2)
 # ============================================
 # Easy wrapper function
 # ============================================
-def ask_llm(prompt: str, max_tokens: int = 100, temperature: float = 0.2, provider: str = "groq"):
+def ask_llm(prompt: str, max_tokens: int = 100, temperature: float = 0.2, provider: str = "gemini"):
     """
     Universal LLM function
     
