@@ -1,6 +1,6 @@
 import json
 import re
-from llm_client_3 import ask_llm
+from llm_client_2 import ask_llm
 
 def sanitize_title(t):
     """Remove sensitive info from titles"""
