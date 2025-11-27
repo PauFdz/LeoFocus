@@ -39,17 +39,19 @@ activity_state = {
     "session_start": time.time(),
     "last_input_time": time.time(),
     "inactive_threshold": 300,
-    # nuove metriche
-    "click_per_app": {},          # click per finestra
-    "switch_sequence": [],        # sequenza finestre attive
-    "key_combinations": {},       # combinazioni di tasti
-    "scroll_events": 0,           # scroll generico
-    "reading_time": {},            # tempo con finestra aperta senza input
+    # existing metrics
+    "click_per_app": {},
+    "switch_sequence": [],
+    "key_combinations": {},
+    "scroll_events": 0,
+    "reading_time": {},
     "session_end": None,
-    "pause_periods": [],          # lista tuple (start, end) di inattività
+    "pause_periods": [],
     "last_pause_start": None,
-    "hourly_activity": {},        # ore del giorno → tempo attivo
-    "productive_switches": 0,     # switch tra app produttive e distrattive
+    "hourly_activity": {},
+    "productive_switches": 0,
+    # ADD THIS LINE ⬇️
+    "document_names": {},  # Track document/tab names per window
 }
 
 # -----------------------------
@@ -181,6 +183,8 @@ def monitor_active_window():
             if current:
                 activity_state["window_open_count"][current] = activity_state["window_open_count"].get(current, 0) + 1
                 activity_state["window_log"].append((time.ctime(), current, "foreground"))
+                # Track document/tab name for this window
+                activity_state["document_names"][current] = get_document_name(current)
 
             # sequenza finestre per pattern switch
             activity_state["switch_sequence"].append(current)

@@ -1,0 +1,19 @@
+# Core LLM dependencies (Pure Python - No C++ compiler needed!)
+transformers>=4.35.0
+torch>=2.0.0
+accelerate>=0.24.0
+
+# Activity tracking
+pynput>=1.7.6
+
+# Platform-specific (Windows only)
+pygetwindow>=0.0.9; sys_platform == 'win32'
+pywin32>=306; sys_platform == 'win32'
+
+# Optional: Better tokenization
+sentencepiece>=0.1.99
+protobuf>=3.20.0
+
+# Development
+pytest>=7.4.0
+black>=23.0.0
