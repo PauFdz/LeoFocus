@@ -12,6 +12,38 @@ DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "Wh
 PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron"]
 BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok"]
 
+# SYSTEM PROCESSES TO IGNORE (Windows)
+SYSTEM_PROCESSES = [
+    "Program Manager",
+    "Realtek Audio Console",
+    "OmApSvcBroker",
+    "Experiencia de entrada de Windows",
+    "NVIDIA GeForce Overlay",
+    "NVIDIA Share",
+    "Windows Shell Experience Host",
+    "Microsoft Text Input Application",
+    "SearchUI",
+    "ShellExperienceHost",
+    "ApplicationFrameHost",
+    "TextInputHost",
+    "Settings",
+    "Configuración",
+    "SystemSettings",
+    "Windows Security",
+    "Seguridad de Windows"
+]
+
+# SYSTEM PROCESSES TO IGNORE (macOS)
+MAC_SYSTEM_PROCESSES = [
+    "Dock",
+    "Finder",
+    "SystemUIServer",
+    "Control Center",
+    "NotificationCenter",
+    "loginwindow",
+    "WindowServer"
+]
+
 APP_CATEGORIES = {
     "browser": ["Safari", "Chrome", "Firefox", "Edge"],
     "ide": ["VSCode", "PyCharm", "Sublime Text"],
@@ -38,8 +70,7 @@ activity_state = {
     "window_log": [],
     "session_start": time.time(),
     "last_input_time": time.time(),
-    "inactive_threshold": 300,
-    # existing metrics
+    "inactive_threshold": 10,
     "click_per_app": {},
     "switch_sequence": [],
     "key_combinations": {},
@@ -50,9 +81,39 @@ activity_state = {
     "last_pause_start": None,
     "hourly_activity": {},
     "productive_switches": 0,
-    # ADD THIS LINE ⬇️
-    "document_names": {},  # Track document/tab names per window
+    "document_names": {},
+    "all_open_windows": [],
 }
+
+# -----------------------------
+# HELPER FUNCTIONS
+# -----------------------------
+def is_system_process(window_name):
+    """Check if a window is a system process that should be ignored"""
+    if not window_name:
+        return True
+    
+    # Check Windows system processes
+    for system_proc in SYSTEM_PROCESSES:
+        if system_proc.lower() in window_name.lower():
+            return True
+    
+    # Check macOS system processes
+    for system_proc in MAC_SYSTEM_PROCESSES:
+        if system_proc.lower() in window_name.lower():
+            return True
+    
+    # Ignore very short names (likely system processes)
+    if len(window_name.strip()) < 2:
+        return True
+    
+    # Ignore windows with sharing notifications
+    if "compartiendo tu pantalla" in window_name.lower():
+        return True
+    if "is sharing your screen" in window_name.lower():
+        return True
+    
+    return False
 
 # -----------------------------
 # ACTIVE WINDOW DETECTION
@@ -62,11 +123,13 @@ def get_active_window():
         if sys.platform == "darwin":
             script = 'tell application "System Events" to get name of first application process whose frontmost is true'
             active_app = subprocess.check_output(['osascript', '-e', script]).decode('utf-8').strip()
-            return active_app
+            return active_app if not is_system_process(active_app) else None
         else:
             import pygetwindow as gw
             win = gw.getActiveWindow()
-            return str(win.title) if win else None
+            if win and win.title:
+                return str(win.title) if not is_system_process(win.title) else None
+            return None
     except:
         return None
 
@@ -92,9 +155,8 @@ def get_document_name(window_name):
                 script = 'tell application "Google Chrome" to get title of active tab of front window'
                 return subprocess.check_output(['osascript', '-e', script]).decode('utf-8').strip()
             if "Firefox" in window_name:
-                # Firefox non supporta AppleScript nativo per schede, usa heuristica dal titolo
-                if " – " in window_name:
-                    return window_name.split(" – ")[0]
+                if " — " in window_name:
+                    return window_name.split(" — ")[0]
                 return window_name
             if "Edge" in window_name:
                 script = 'tell application "Microsoft Edge" to get title of active tab of front window'
@@ -102,9 +164,8 @@ def get_document_name(window_name):
         except:
             return window_name
 
-        # fallback generico: split dal titolo finestra
-        if " – " in window_name:
-            return window_name.split(" – ")[0]
+        if " — " in window_name:
+            return window_name.split(" — ")[0]
         if " | " in window_name:
             return window_name.split(" | ")[0]
 
@@ -136,20 +197,42 @@ def get_document_name(window_name):
                 return window_name.split(" | ")[0]
 
         # IDE/other apps
-        if " – " in window_name:
-            return window_name.split(" – ")[0]
+        if " — " in window_name:
+            return window_name.split(" — ")[0]
 
         return window_name
 
 
 def is_browser_distraction(window_name):
-    # Controlla se la finestra è un browser con tab distrattiva
     doc_name = get_document_name(window_name)
     if any(browser in window_name for browser in ["Chrome", "Safari", "Firefox", "Edge"]):
         for keyword in BROWSER_DISTRACTIONS:
             if keyword.lower() in doc_name.lower():
                 return True
     return False
+
+# -----------------------------
+# ALL OPEN WINDOWS / APPS - FIXED WITH FILTERING
+# -----------------------------
+def get_all_windows():
+    """Get all open windows - FILTERED to exclude system processes"""
+    try:
+        if sys.platform == "darwin":
+            script = 'tell application "System Events" to get name of every process whose background only is false'
+            output = subprocess.check_output(['osascript', '-e', script]).decode('utf-8').strip()
+            windows = [a.strip() for a in output.split(",") if a.strip()]
+            # Filter out system processes
+            windows = [w for w in windows if not is_system_process(w)]
+            return windows
+        else:
+            import pygetwindow as gw
+            # Filter out empty titles, system windows, and very short names
+            windows = [w.title for w in gw.getAllWindows() 
+                      if w.title and len(w.title) > 0 and not is_system_process(w.title)]
+            return windows
+    except Exception as e:
+        print(f"⚠️ Error getting windows: {e}")
+        return []
 
 # -----------------------------
 # MONITOR WINDOW
@@ -160,19 +243,31 @@ def monitor_active_window():
         now = time.time()
         last = activity_state["last_window"]
 
-        # gestione pause
+        # Update all open windows list (filtered)
+        activity_state["all_open_windows"] = get_all_windows()
+
+        # Pause detection
         inactive_elapsed = now - activity_state["last_input_time"]
+        
+        # Start pause if inactive for too long
         if inactive_elapsed > activity_state["inactive_threshold"]:
             if activity_state["last_pause_start"] is None:
-                activity_state["last_pause_start"] = now
+                activity_state["last_pause_start"] = activity_state["last_input_time"]
+                print(f"⏸️ Pause started at {time.ctime(activity_state['last_pause_start'])}")
         else:
-            if activity_state["last_pause_start"]:
-                activity_state["pause_periods"].append(
-                    (activity_state["last_pause_start"], now)
-                )
+            # End pause when activity resumes
+            if activity_state["last_pause_start"] is not None:
+                pause_end = now
+                pause_duration = pause_end - activity_state["last_pause_start"]
+                activity_state["pause_periods"].append({
+                    "start": time.ctime(activity_state["last_pause_start"]),
+                    "end": time.ctime(pause_end),
+                    "duration": int(pause_duration)
+                })
+                print(f"▶️ Pause ended. Duration: {int(pause_duration)} seconds")
                 activity_state["last_pause_start"] = None
 
-        # aggiornamento sequenze e switch
+        # Window switching logic
         if current != last:
             if last:
                 elapsed = now - activity_state["last_switch_time"]
@@ -183,17 +278,14 @@ def monitor_active_window():
             if current:
                 activity_state["window_open_count"][current] = activity_state["window_open_count"].get(current, 0) + 1
                 activity_state["window_log"].append((time.ctime(), current, "foreground"))
-                # Track document/tab name for this window
                 activity_state["document_names"][current] = get_document_name(current)
 
-            # sequenza finestre per pattern switch
             activity_state["switch_sequence"].append(current)
             if len(activity_state["switch_sequence"]) > 50:
                 activity_state["switch_sequence"] = activity_state["switch_sequence"][-50:]
 
-            # conteggio multitasking: switch tra produttive e distrattive
+            # Productive/distracting switches
             if last:
-                # Determina la categoria considerando anche tab browser distrattivi
                 def get_app_category(win):
                     if win in PRODUCTIVE_APPS:
                         return "productive"
@@ -212,7 +304,7 @@ def monitor_active_window():
             activity_state["last_window"] = current
             activity_state["last_switch_time"] = now
 
-        # aggiornamento background / reading time e distribuzione oraria
+        # Background time and reading time
         hour = time.localtime(now).tm_hour
         activity_state["hourly_activity"][hour] = activity_state["hourly_activity"].get(hour, 0) + 0.5
 
@@ -220,11 +312,11 @@ def monitor_active_window():
             if w != current:
                 activity_state["window_background_time"][w] = activity_state["window_background_time"].get(w, 0) + 0.5
             else:
-                # tempo di lettura
                 if inactive_elapsed < 5:
                     activity_state["reading_time"][w] = activity_state["reading_time"].get(w, 0) + 0.5
 
         time.sleep(0.5)
+
 # -----------------------------
 # KEYBOARD & MOUSE
 # -----------------------------
@@ -232,7 +324,6 @@ def on_key_press(key):
     activity_state["key_presses"] += 1
     activity_state["last_input_time"] = time.time()
 
-    # track combinazioni ctrl/cmd + altri tasti (browser tab switch, shortcuts)
     try:
         k = str(key)
         if "Key.ctrl" in k or "Key.cmd" in k:
@@ -261,30 +352,13 @@ def on_scroll(x, y, dx, dy):
     activity_state["last_input_time"] = time.time()
 
 # -----------------------------
-# ALL OPEN WINDOWS / APPS
-# -----------------------------
-def get_all_windows():
-    try:
-        if sys.platform == "darwin":
-            script = 'tell application "System Events" to get name of every process whose background only is false'
-            output = subprocess.check_output(['osascript', '-e', script]).decode('utf-8').strip()
-            return [a.strip() for a in output.split(",") if a.strip()]
-        else:
-            import pygetwindow as gw
-            return [w.title for w in gw.getWindows() if w.title]
-    except:
-        return []
-
-# -----------------------------
 # CATEGORIZZA APP
 # -----------------------------
 def categorize_app(app_name, doc_name=None):
-    # Controllo app “normali”
     for category, apps in APP_CATEGORIES.items():
         if app_name in apps:
             return category
 
-    # Se è un browser, guarda anche il titolo della scheda
     if app_name in ["Safari", "Chrome", "Firefox", "Edge"] and doc_name:
         for keyword in BROWSER_DISTRACTIONS:
             if keyword.lower() in doc_name.lower():
@@ -310,8 +384,6 @@ def report_loop():
         inactive_time = now - activity_state["last_input_time"]
         is_inactive = inactive_time > activity_state["inactive_threshold"]
 
-        all_windows = get_all_windows()
-
         print("\n--- ACTIVITY REPORT ---")
         print(f"Active window       : {current_window}")
         print(f"Window switches     : {activity_state['window_switches']}")
@@ -319,7 +391,7 @@ def report_loop():
         print(f"Mouse moves         : {activity_state['mouse_moves']}")
         print(f"Mouse clicks        : {activity_state['mouse_clicks']}")
         print(f"Scroll events       : {activity_state['scroll_events']}")
-        print(f"All open windows    : {all_windows}")
+        print(f"All open windows    : {activity_state['all_open_windows']}")
         print(f"Time per window     :")
 
         for w, t in activity_state["window_times"].items():
@@ -328,7 +400,6 @@ def report_loop():
             doc_name = get_document_name(w)
             category = categorize_app(w, doc_name=doc_name)
             opens = activity_state["window_open_count"].get(w, 0)
-            doc_name = get_document_name(w)
             clicks = activity_state["click_per_app"].get(w, 0)
             print(f"  {w}: {int(t)} sec (fg), {int(bg_time)} sec (bg), reading {int(reading_time)} sec, clicks {clicks}, opened {opens} times, category: {category}, document/tab: {doc_name}")
 
@@ -369,7 +440,7 @@ if __name__ == "__main__":
     keyboard_listener = keyboard.Listener(on_press=on_key_press)
     keyboard_listener.start()
 
-    mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click)
+    mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
     mouse_listener.start()
 
     try:
@@ -378,14 +449,7 @@ if __name__ == "__main__":
     except KeyboardInterrupt:
         print("\n🛑 User stopped monitoring. Generating summary...")
 
-        # IMPORT qui (non sopra)
         from local_summarizer import summarize_activity_with_llm
-
-        # chiudi sessione
-        activity_state["session_end"] = time.time()
-
-        # genera testo
-        print("\n🛑 User stopped monitoring. Generating summary...\n")
 
         activity_state["session_end"] = time.time()
 
