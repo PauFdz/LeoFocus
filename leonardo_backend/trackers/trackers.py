@@ -4,6 +4,7 @@ import sys
 from pynput import keyboard, mouse
 import subprocess
 import os
+from local_summarizer import summarize_activity_with_llm, get_start_session_advice
 
 # -----------------------------
 # CONFIGURAZIONE APPLICAZIONI
@@ -433,7 +434,33 @@ def report_loop():
 # MAIN
 # -----------------------------
 if __name__ == "__main__":
-    print("🔍 Starting enhanced activity monitor (Windows + macOS)...")
+    print("\n🎭 WELCOME TO THE ATELIER OF LEONARDO 🎭")
+    print("------------------------------------------")
+
+    # 1. ACQUISIZIONE CONTESTO
+    print("Before we commence, declare thy craft for today, that I may judge thy virtues rightly.")
+    print("(e.g., Student of Medicine, Social Media Manager, Python Architect, Scribe...)")
+    user_context = input(">> THY ROLE / GOAL: ").strip()
+    
+    if not user_context:
+        user_context = "General Learner"
+    
+    # Salviamo il contesto nello stato globale per usarlo alla fine
+    activity_state["user_context"] = user_context
+
+    # 2. GENERAZIONE SUGGERIMENTI PRE-SESSIONE
+    print(f"\n⏳ Leonardo is contemplating upon thy role as '{user_context}'...")
+    advice = get_start_session_advice(user_context)
+    
+    print("\n📜 --- LEONARDO'S PRECEPTS FOR THE TASK --- 📜")
+    print(advice)
+    print("--------------------------------------------------")
+    
+    input("\nPress ENTER when thou art ready to commence thy labors...")
+    print("🚀 Observation begun. Proceed with 'Virtù'! (Press Ctrl+C to conclude)")
+
+    # 3. AVVIO MONITORAGGIO (Codice esistente)
+    activity_state["session_start"] = time.time() # Reset start time to now
 
     threading.Thread(target=monitor_active_window, daemon=True).start()
 
@@ -447,12 +474,13 @@ if __name__ == "__main__":
         report_loop()
 
     except KeyboardInterrupt:
-        print("\n🛑 User stopped monitoring. Generating summary...")
+        print("\n🛑 The session is halted. I am composing the Codex of thy efforts...")
 
-        from local_summarizer import summarize_activity_with_llm
-
+        # Calcolo finale
         activity_state["session_end"] = time.time()
-
+        
+        # Chiamata al summarizer (che ora userà activity_state["user_context"])
         summary = summarize_activity_with_llm(activity_state)
-        print("\n--- SUMMARY ---\n")
+        
+        print("\n--- THE FINAL CODEX OF LEONARDO ---\n")
         print(summary)
