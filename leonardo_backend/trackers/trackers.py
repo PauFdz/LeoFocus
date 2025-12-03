@@ -1,3 +1,4 @@
+import json
 import time
 import threading
 import sys
@@ -370,117 +371,74 @@ def categorize_app(app_name, doc_name=None):
 # -----------------------------
 # REPORT LOOP
 # -----------------------------
-def report_loop():
+def report_loop_json():
+    """Versione JSON del loop per Flutter"""
     while True:
-        time.sleep(5)
+        time.sleep(1) # Aggiornamento più frequente per la UI (1s invece di 5s)
         now = time.time()
-        activity_state["session_end"] = now
-
+        
+        # Logica di calcolo (identica a prima)
         current_window = activity_state["active_window"]
         if current_window:
             elapsed = now - activity_state["last_switch_time"]
             activity_state["window_times"][current_window] = activity_state["window_times"].get(current_window, 0) + elapsed
             activity_state["last_switch_time"] = now
 
-        inactive_time = now - activity_state["last_input_time"]
-        is_inactive = inactive_time > activity_state["inactive_threshold"]
-
-        print("\n--- ACTIVITY REPORT ---")
-        print(f"Active window       : {current_window}")
-        print(f"Window switches     : {activity_state['window_switches']}")
-        print(f"Key presses         : {activity_state['key_presses']}")
-        print(f"Mouse moves         : {activity_state['mouse_moves']}")
-        print(f"Mouse clicks        : {activity_state['mouse_clicks']}")
-        print(f"Scroll events       : {activity_state['scroll_events']}")
-        print(f"All open windows    : {activity_state['all_open_windows']}")
-        print(f"Time per window     :")
-
-        for w, t in activity_state["window_times"].items():
-            bg_time = activity_state["window_background_time"].get(w, 0)
-            reading_time = activity_state["reading_time"].get(w, 0)
-            doc_name = get_document_name(w)
-            category = categorize_app(w, doc_name=doc_name)
-            opens = activity_state["window_open_count"].get(w, 0)
-            clicks = activity_state["click_per_app"].get(w, 0)
-            print(f"  {w}: {int(t)} sec (fg), {int(bg_time)} sec (bg), reading {int(reading_time)} sec, clicks {clicks}, opened {opens} times, category: {category}, document/tab: {doc_name}")
-
-        print(f"Inactive?           : {is_inactive} ({int(inactive_time)} sec)")
-        print(f"Session start       : {time.ctime(activity_state['session_start'])}")
-        print(f"Session end         : {time.ctime(activity_state['session_end'])}")
-        print(f"Pause periods       : {activity_state['pause_periods']}")
-        print(f"Switches productive/distracting : {activity_state['productive_switches']}")
-        print("Hourly activity distribution:")
-        for h in sorted(activity_state["hourly_activity"]):
-            print(f"  {h}:00 - {int(activity_state['hourly_activity'][h])} sec")
-
-        print("Recent window sequence (last 10):")
-        print(f"  {activity_state['switch_sequence'][-10:]}")
-        print("Key combinations:")
-        print(f"  {activity_state['key_combinations']}")
-        print("Window log (last 10):")
-        for log in activity_state["window_log"][-10:]:
-            print(f"  {log}")
-        print("------------------------\n")
-
-        # reset contatori temporanei
-        activity_state["key_presses"] = 0
-        activity_state["mouse_moves"] = 0
-        activity_state["mouse_clicks"] = 0
-        activity_state["window_switches"] = 0
-        activity_state["scroll_events"] = 0
-        activity_state["key_combinations"] = {}
+        # Creiamo un oggetto dati pulito per Flutter
+        data_packet = {
+            "type": "update",
+            "active_window": current_window if current_window else "Idle",
+            "total_time": int(now - activity_state["session_start"]),
+            "switches": activity_state['window_switches'],
+            "keys": activity_state['key_presses'],
+            "mouse": activity_state['mouse_moves'],
+            "is_inactive": (now - activity_state["last_input_time"]) > activity_state["inactive_threshold"],
+            # Inviamo i top 5 per il grafico
+            "top_apps": sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
+        }
+        
+        # STAMPA JSON SU UNA RIGA (importante flush=True)
+        print(json.dumps(data_packet), flush=True)
 
 # -----------------------------
 # MAIN
 # -----------------------------
 if __name__ == "__main__":
-    print("\n🎭 WELCOME TO THE ATELIER OF LEONARDO 🎭")
-    print("------------------------------------------")
-
-    # 1. ACQUISIZIONE CONTESTO
-    print("Before we commence, declare thy craft for today, that I may judge thy virtues rightly.")
-    print("(e.g., Student of Medicine, Social Media Manager, Python Architect, Scribe...)")
-    user_context = input(">> THY ROLE / GOAL: ").strip()
+    # 1. ACQUISIZIONE CONTESTO DA ARGOMENTI (passati da Flutter)
+    if len(sys.argv) > 1:
+        user_context = sys.argv[1]
+    else:
+        user_context = "General Creator"
     
-    if not user_context:
-        user_context = "General Learner"
-    
-    # Salviamo il contesto nello stato globale per usarlo alla fine
     activity_state["user_context"] = user_context
 
-    # 2. GENERAZIONE SUGGERIMENTI PRE-SESSIONE
-    print(f"\n⏳ Leonardo is contemplating upon thy role as '{user_context}'...")
-    advice = get_start_session_advice(user_context)
+    # Avvia monitoraggio
+    activity_state["session_start"] = time.time()
     
-    print("\n📜 --- LEONARDO'S PRECEPTS FOR THE TASK --- 📜")
-    print(advice)
-    print("--------------------------------------------------")
-    
-    input("\nPress ENTER when thou art ready to commence thy labors...")
-    print("🚀 Observation begun. Proceed with 'Virtù'! (Press Ctrl+C to conclude)")
-
-    # 3. AVVIO MONITORAGGIO (Codice esistente)
-    activity_state["session_start"] = time.time() # Reset start time to now
-
+    # Thread separati per input
     threading.Thread(target=monitor_active_window, daemon=True).start()
-
     keyboard_listener = keyboard.Listener(on_press=on_key_press)
     keyboard_listener.start()
-
     mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
     mouse_listener.start()
 
     try:
-        report_loop()
+        # Usiamo il loop JSON
+        report_loop_json()
 
     except KeyboardInterrupt:
-        print("\n🛑 The session is halted. I am composing the Codex of thy efforts...")
-
-        # Calcolo finale
+        # Quando Flutter chiude il processo o invia segnale
         activity_state["session_end"] = time.time()
         
-        # Chiamata al summarizer (che ora userà activity_state["user_context"])
+        # Comunica a Flutter che stiamo pensando
+        print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
+        
+        # Genera report LLM
         summary = summarize_activity_with_llm(activity_state)
         
-        print("\n--- THE FINAL CODEX OF LEONARDO ---\n")
-        print(summary)
+        # Invia il report finale
+        final_packet = {
+            "type": "report",
+            "content": summary
+        }
+        print(json.dumps(final_packet), flush=True)

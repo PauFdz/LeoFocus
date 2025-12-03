@@ -1,0 +1,118 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
+
+class LeonardoService extends ChangeNotifier {
+  Process? _process;
+  
+  // Stato UI
+  bool isRunning = false;
+  bool isGeneratingReport = false;
+  String currentContext = "";
+  
+  // Dati in tempo reale
+  String activeWindow = "Waiting...";
+  int totalTime = 0;
+  int switches = 0;
+  List<dynamic> topApps = [];
+  String? finalReport;
+
+  // ---------------------------------------------------------------------------
+  // CONFIGURAZIONE PERCORSI
+  // ---------------------------------------------------------------------------
+  
+  // 1. Il tuo Python
+  final String pythonExec = '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3'; 
+  
+  // 2. La cartella dei file Python
+  final String backendPath = '/Users/davidravelli/Documents/GitHub/Leonardo/leonardo_backend/trackers'; 
+  
+  // 3. Il nome del file principale
+  final String scriptName = 'trackers.py';
+  // ---------------------------------------------------------------------------
+
+  Future<void> startSession(String context) async {
+    currentContext = context;
+    isRunning = true;
+    finalReport = null;
+    notifyListeners();
+
+    print("🚀 FLUTTER: Avvio Sessione...");
+    print("📂 Directory di lavoro: $backendPath");
+    print("🐍 Eseguibile: $pythonExec");
+
+    try {
+      _process = await Process.start(
+        pythonExec, 
+        ['-u', scriptName, context], 
+        workingDirectory: backendPath, 
+        runInShell: true, 
+      );
+
+      print("✅ Processo avviato (PID: ${_process!.pid})");
+
+      _process!.stdout.transform(utf8.decoder).transform(const LineSplitter()).listen((line) {
+        _parsePythonOutput(line);
+      });
+
+      _process!.stderr.transform(utf8.decoder).listen((data) {
+        print("❌ PYTHON ERROR: $data"); 
+      });
+
+    } catch (e) {
+      print("❌ ERRORE LANCIO FLUTTER: $e");
+      isRunning = false;
+      notifyListeners();
+    }
+  }
+
+  void _parsePythonOutput(String line) {
+    try {
+      if (!line.trim().startsWith('{')) return; 
+      
+      final data = jsonDecode(line);
+
+      if (data['type'] == 'update') {
+        activeWindow = data['active_window'];
+        totalTime = data['total_time'];
+        switches = data['switches'];
+        topApps = data['top_apps'];
+        notifyListeners();
+      } 
+      else if (data['type'] == 'status') {
+        isGeneratingReport = true;
+        notifyListeners();
+      }
+      else if (data['type'] == 'report') {
+        finalReport = data['content'];
+        isGeneratingReport = false;
+        isRunning = false;
+        notifyListeners();
+        _process?.kill(); 
+      }
+    } catch (e) {
+      print("⚠️ Errore parsing JSON: $e");
+    }
+  }
+
+  Future<void> stopSession() async {
+    print("🛑 Invio segnale di stop a Python...");
+    _process?.kill(ProcessSignal.sigint);
+  }
+
+  // --- ECCO LA FUNZIONE RESET (DENTRO LA CLASSE) ---
+  void reset() {
+    print("🔄 Resetting application state...");
+    finalReport = null;
+    isRunning = false;
+    isGeneratingReport = false;
+    activeWindow = "Waiting...";
+    totalTime = 0;
+    switches = 0;
+    topApps = [];
+    currentContext = "";
+    
+    notifyListeners();
+  }
+
+} // <--- QUESTA È L'ULTIMA PARENTESI DELLA CLASSE
