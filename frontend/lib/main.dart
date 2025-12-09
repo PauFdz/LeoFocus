@@ -220,10 +220,13 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       child: Stack(
         children: [
           Center(
-            child: Icon(
-              Icons.account_circle,
-              size: 40,
-              color: statusColor.withOpacity(0.8),
+            child: ClipOval( 
+              child: Image.asset(
+                'assets/leo.png', // <-- Il percorso del tuo file PNG
+                fit: BoxFit.cover, 
+                width: 200,      // Assicurati che le dimensioni siano coerenti 
+                height: 200,     // con il Container genitore se necessario.
+              ),
             ),
           ),
           Positioned(
@@ -520,7 +523,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                           gradient: LinearGradient(
                                             colors: [
                                               LeonardoTheme.accent.withOpacity(0.8),
-                                              LeonardoTheme.gold.withOpacity(0.6),
+                                              LeonardoTheme.accent.withOpacity(0.6),
                                             ],
                                           ),
                                           borderRadius: BorderRadius.circular(10),
@@ -743,7 +746,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
-                    colors: [LeonardoTheme.accent, LeonardoTheme.gold],
+                    colors: [LeonardoTheme.accent, LeonardoTheme.accent],
                   ),
                   borderRadius: BorderRadius.circular(16),
                 ),

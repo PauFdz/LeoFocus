@@ -6,13 +6,14 @@ from pynput import keyboard, mouse
 import subprocess
 import os
 from local_summarizer import summarize_activity_with_llm, get_start_session_advice
+from llm_client_2 import create_json_memory, generate_final_report_from_memory
 
 # -----------------------------
 # CONFIGURAZIONE APPLICAZIONI
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
 PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron"]
-BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok"]
+BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok", "Reddit", "Twitter", "Prime Video", "Twitch", "Spotify"]
 
 # SYSTEM PROCESSES TO IGNORE (Windows)
 SYSTEM_PROCESSES = [
@@ -85,6 +86,7 @@ activity_state = {
     "productive_switches": 0,
     "document_names": {},
     "all_open_windows": [],
+    "total_distracted_time" : 0
 }
 
 # -----------------------------
@@ -116,6 +118,12 @@ def is_system_process(window_name):
         return True
     
     return False
+
+def log_debug(data):
+    #for debugging
+    # Scrive nella stessa cartella dello script
+    with open("debug_leonardo.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
 # -----------------------------
 # ACTIVE WINDOW DETECTION
@@ -221,7 +229,7 @@ def get_all_windows():
     try:
         if sys.platform == "darwin":
             script = 'tell application "System Events" to get name of every process whose background only is false'
-            output = subprocess.check_output(['osascript', '-e', script]).decode('utf-8').strip()
+            output = subprocess.check_output(['osascript', '-e', script], stderr=subprocess.DEVNULL).decode('utf-8').strip()
             windows = [a.strip() for a in output.split(",") if a.strip()]
             # Filter out system processes
             windows = [w for w in windows if not is_system_process(w)]
@@ -372,34 +380,147 @@ def categorize_app(app_name, doc_name=None):
 # REPORT LOOP
 # -----------------------------
 def report_loop_json():
-    """Versione JSON del loop per Flutter"""
+    # Stato Iniziale della Memoria
+    memory_context = {
+        "focus_score": 100,
+        "status": "Starting",
+        "summary_so_far": "Session started.",
+        "leonardo_comment": "I am observing."
+    }
+    
+    activity_state["memory_context"] = memory_context
+    
+    last_chunk_time = time.time()
+    
+    # Accumulatori per il chunk di 30 secondi
+    chunk_windows_list = []      # Nomi completi (App + Titolo)
+    chunk_distraction_hits = 0   # Contatore secondi di distrazione
+    chunk_samples = 0            # Contatore totale secondi
+
     while True:
-        time.sleep(1) # Aggiornamento più frequente per la UI (1s invece di 5s)
+        time.sleep(1)
         now = time.time()
         
-        # Logica di calcolo (identica a prima)
-        current_window = activity_state["active_window"]
-        if current_window:
+        # 1. Recupera App e Titolo (es. "Google Chrome", "YouTube - Funny Cats")
+        app_name = activity_state["active_window"]
+        doc_name = ""
+        
+        # Se c'è una finestra attiva, cerchiamo il dettaglio (Titolo Tab/Documento)
+        if app_name:
+            doc_name = get_document_name(app_name)
+            
+            # Aggiorniamo i tempi globali (logica esistente)
             elapsed = now - activity_state["last_switch_time"]
-            activity_state["window_times"][current_window] = activity_state["window_times"].get(current_window, 0) + elapsed
+            activity_state["window_times"][app_name] = activity_state["window_times"].get(app_name, 0) + elapsed
             activity_state["last_switch_time"] = now
 
-        # Creiamo un oggetto dati pulito per Flutter
+        # 2. Determina se è una distrazione ORA (ogni secondo)
+        is_distracted_now = False
+        full_window_name = app_name if app_name else "Idle"
+        
+        if app_name:
+            # Aggiungiamo il titolo al nome per chiarezza
+            if doc_name:
+                full_window_name = f"{app_name} ({doc_name})"
+            
+            # Check 1: L'App è nella lista nera? (es. Spotify app)
+            if app_name in DISTRACTING_APPS:
+                is_distracted_now = True
+            
+            # Check 2: È un browser e il sito è nella lista nera?
+            elif app_name in ["Google Chrome", "Safari", "Firefox", "Microsoft Edge", "Arc"]:
+                # Controlla keywords nel titolo (es. "YouTube" in "YouTube - Video")
+                for distractor in BROWSER_DISTRACTIONS:
+                    if distractor.lower() in doc_name.lower():
+                        is_distracted_now = True
+                        break
+        
+        # 3. Accumula dati per il Chunk (Matematica)
+        chunk_samples += 1
+        if is_distracted_now:
+            chunk_distraction_hits += 1
+            activity_state["total_distracted_time"] += 1
+        
+        if app_name:
+            chunk_windows_list.append(full_window_name)
+
+        # 4. Invia dati UI a Flutter (Timer veloce)
         data_packet = {
             "type": "update",
-            "active_window": current_window if current_window else "Idle",
+            "active_window": full_window_name, # Ora mostriamo anche il titolo a Flutter!
             "total_time": int(now - activity_state["session_start"]),
             "switches": activity_state['window_switches'],
             "keys": activity_state['key_presses'],
             "mouse": activity_state['mouse_moves'],
             "is_inactive": (now - activity_state["last_input_time"]) > activity_state["inactive_threshold"],
-            # Inviamo i top 5 per il grafico
             "top_apps": sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
         }
-        
-        # STAMPA JSON SU UNA RIGA (importante flush=True)
+
         print(json.dumps(data_packet), flush=True)
 
+        # === Check every 30 seconds ===
+        if now - last_chunk_time >= 30:
+            
+            # Don't use this anymore
+            """distraction_percent = 0
+            if chunk_samples > 0:
+                distraction_percent = int((chunk_distraction_hits / chunk_samples) * 100)"""
+
+                # A. Distrazione RECENTE (ultimi 30s) -> Per l'emozione immediata
+            recent_distraction = 0
+            if chunk_samples > 0:
+                recent_distraction = int((chunk_distraction_hits / chunk_samples) * 100)
+
+            # B. Distrazione GLOBALE (tutta la sessione) -> Per il Focus Score stabile
+            session_duration = now - activity_state["session_start"]
+            global_distraction = 0
+            if session_duration > 0:
+                global_distraction = int((activity_state["total_distracted_time"] / session_duration) * 100)
+            
+            # Prepariamo i dati per l'LLM
+            # Usiamo set() per mandare solo la lista unica delle app usate
+            unique_windows = list(set(chunk_windows_list))
+            
+            chunk_data = {
+                "windows": unique_windows, # L'LLM vedrà "Chrome (YouTube)"
+                "duration": 30,
+                #"distraction_level": distraction_percent, 
+                "recent_distraction": recent_distraction, # <--- Modifica qui
+                "global_distraction": global_distraction  # <--- Modifica qui
+            }
+            
+            try:
+                # Chiediamo a Groq
+                new_memory = create_json_memory(chunk_data, memory_context, activity_state["user_context"])
+                memory_context = new_memory
+                activity_state["memory_context"] = memory_context 
+                
+                # Pacchetto per Flutter
+                leo_packet = {
+                    "type": "leo_comment",
+                    "content": memory_context.get('leonardo_comment', 'Observing...'),
+                    "focus_score": memory_context.get('focus_score', 100),
+                    "emotion": memory_context.get('leonardo_emotion', 'neutral') 
+                }
+                print(json.dumps(leo_packet), flush=True)
+                
+                # Debug Log (Per vedere se la matematica funziona)
+                log_debug({
+                    "type": "LLM_MEMORY_DUMP", 
+                    "math_distraction_percent": global_distraction,
+                    "apps_seen": unique_windows,
+                    "memory_content": memory_context
+                })
+
+            except Exception as e:
+                print(f"⚠️ LLM Error: {e}", file=sys.stderr)
+
+            # Reset
+            chunk_windows_list = []
+            chunk_distraction_hits = 0
+            chunk_samples = 0
+            last_chunk_time = now
+            
 # -----------------------------
 # MAIN
 # -----------------------------
@@ -433,12 +554,21 @@ if __name__ == "__main__":
         # Comunica a Flutter che stiamo pensando
         print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
         
-        # Genera report LLM
-        summary = summarize_activity_with_llm(activity_state)
+        # Genering report LLM
+        # summary = summarize_activity_with_llm(activity_state)
+        # now generates using the final json instead of the logs like before
+        final_memory = activity_state.get("memory_context", {})
+
+        try:
+            # generating the final json
+            report_markdown = generate_final_report_from_memory(final_memory)
         
-        # Invia il report finale
-        final_packet = {
-            "type": "report",
-            "content": summary
-        }
-        print(json.dumps(final_packet), flush=True)
+            # Invia il report finale
+            final_packet = {
+                "type": "report",
+                "content": report_markdown
+            }
+            print(json.dumps(final_packet), flush=True)
+
+        except Exception as e:
+            print(f"⚠️ Error generating report: {e}", file=sys.stderr)

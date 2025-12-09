@@ -22,15 +22,16 @@ class LeonardoService extends ChangeNotifier {
   // ---------------------------------------------------------------------------
   
   // 1. Il tuo Python
-  final String pythonExec = '/Library/Frameworks/Python.framework/Versions/3.12/bin/python3'; 
+  final String pythonExec = '/Library/Frameworks/Python.framework/Versions/3.13/bin/python3'; 
   
   // 2. La cartella dei file Python
-  final String backendPath = '/Users/davidravelli/Documents/GitHub/Leonardo/leonardo_backend/trackers'; 
+  //final String backendPath = '/Users/davidravelli/Documents/GitHub/Leonardo/leonardo_backend/trackers'; 
+  final String backendPath = '/Users/filippo/Documents/PoliMI/Creativity Science and Innovation/Leonardo/leonardo_backend/trackers'; 
   
   // 3. Il nome del file principale
   final String scriptName = 'trackers.py';
   // ---------------------------------------------------------------------------
-
+  
   Future<void> startSession(String context) async {
     currentContext = context;
     isRunning = true;
@@ -56,7 +57,9 @@ class LeonardoService extends ChangeNotifier {
       });
 
       _process!.stderr.transform(utf8.decoder).listen((data) {
-        print("❌ PYTHON ERROR: $data"); 
+        if (data.trim().isNotEmpty) {
+          print("❌ PYTHON ERROR: $data"); 
+        }
       });
 
     } catch (e) {

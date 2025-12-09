@@ -16,7 +16,6 @@ class HomeScreen extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // Placeholder per l'immagine di Leo
             Container(
               height: 200,
               width: 200,
@@ -28,10 +27,12 @@ class HomeScreen extends StatelessWidget {
                   width: 4,
                 ),
               ),
-              child: const Icon(
-                Icons.person_4, // Icona temporanea al posto dell'immagine
-                size: 100,
-                color: Colors.grey,
+              child: ClipOval( 
+                child: Image.asset('assets/leo.png', // Leo icon
+                  fit: BoxFit.cover, 
+                  width: 200,
+                  height: 200,
+                ),
               ),
             ),
             const SizedBox(height: 30),
