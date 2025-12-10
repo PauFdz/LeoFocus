@@ -1,7 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-import 'dart:io';
+//import 'dart:io';
+import 'package:universal_io/io.dart';
 import 'package:path/path.dart' as p; // Aggiungi 'path' al pubspec.yaml se non c'è
 
 class LeonardoService extends ChangeNotifier {
@@ -35,16 +36,20 @@ class LeonardoService extends ChangeNotifier {
 
 // 1. Rileva automaticamente l'eseguibile Python in base al sistema operativo
 // Su Windows cerca "python", su Mac/Linux cerca "python3"
-final String pythonExec = Platform.isWindows ? 'python' : 'python3';
+String get pythonExec {
+    if (kIsWeb) return ""; // Su web non c'è python
+    return Platform.isWindows ? 'python' : 'python3';
+  }
 
 // 2. Calcola il percorso backend in modo relativo
-// Directory.current punta alla root del progetto Flutter quando sei in debug.
-// Usiamo '..' per salire di un livello e entrare nell'altra cartella.
-final String backendPath = p.join(
-  Directory.current.parent.path, // Sale alla cartella "Leonardo"
-  'leonardo_backend',            // Scende nella cartella backend
-  'trackers'                     // Scende nella cartella trackers
-);
+String get backendPath {
+    if (kIsWeb) return ""; 
+    return p.join(
+      Directory.current.parent.path,
+      'leonardo_backend',
+      'trackers'
+    );
+  }
 
   
   // 3. Il nome del file principale

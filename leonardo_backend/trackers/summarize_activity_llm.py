@@ -2,17 +2,17 @@ from llm_client import ask_llm
 
 def summarize_activity(activity_state):
     prompt = f"""
-    Sei un assistente che analizza l'attività dell'utente.
+    You are an assistant that analyzes user activity.
 
-    Ecco i dati raccolti:
+    Here is the collected data:
     {activity_state}
 
-    Genera un report chiaro e sintetico su:
-    - livello di produttività
-    - finestre più utilizzate
-    - distrazioni
-    - pause e inattività
-    - raccomandazioni pratiche
+    Generate a clear and concise report on:
+    - productivity level
+    - most used windows
+    - distractions
+    - pauses and inactivity
+    - practical recommendations
     """
 
     return ask_llm(prompt)
