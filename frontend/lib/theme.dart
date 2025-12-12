@@ -7,10 +7,10 @@ class LeonardoTheme {
   static const Color surface = Color(0xFFFFFFFF);
   static const Color ink = Color(0xFF1A1614); // Deep warm black
   static const Color inkLight = Color(0xFF6B675E); // Muted warm grey
-  //static const Color accent = Color(0xFFB8442C); // Terracotta red
   static const Color accent = Color(0xFF102C53); // Polimi blue
   static const Color gold = Color(0xFFD4A574); // Renaissance gold
   static const Color success = Color(0xFF2D7A4F); // Elegant green
+  static const Color failure = Color(0xFFB8442C); // Terracotta red
 
   static ThemeData get themeData {
     return ThemeData(

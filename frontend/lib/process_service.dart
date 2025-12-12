@@ -1,7 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
-//import 'dart:io';
 import 'package:universal_io/io.dart';
 import 'package:path/path.dart' as p; // Aggiungi 'path' al pubspec.yaml se non c'è
 
@@ -19,6 +18,9 @@ class LeonardoService extends ChangeNotifier {
   int switches = 0;
   List<dynamic> topApps = [];
   String? finalReport;
+
+  String emotion = "neutral"; // Default Leo's emotion
+  String leoComment = "I am observing your work.";
 
   // ---------------------------------------------------------------------------
   // CONFIGURAZIONE PERCORSI
@@ -94,6 +96,7 @@ String get backendPath {
   }
 
   void _parsePythonOutput(String line) {
+    //print("📥 RAW PYTHON: $line"); // DEBUGGING
     try {
       if (!line.trim().startsWith('{')) return; 
       
@@ -106,6 +109,21 @@ String get backendPath {
         topApps = data['top_apps'];
         notifyListeners();
       } 
+      
+      else if (data['type'] == 'leo_comment') {
+        print("💡 Trovato commento di Leo!");   // DEBUGGING
+
+        if (data.containsKey('content')) {
+          leoComment = data['content'];
+        }
+
+        if (data.containsKey('emotion')) {
+          emotion = data['emotion'].toString().toLowerCase();
+          print("🎨 FLUTTER: Emozione cambiata in -> $emotion"); // DEBUGGING
+        }
+        
+        notifyListeners();
+      }
       else if (data['type'] == 'status') {
         isGeneratingReport = true;
         notifyListeners();
@@ -138,8 +156,10 @@ String get backendPath {
     switches = 0;
     topApps = [];
     currentContext = "";
+    emotion = "neutral"; 
+    leoComment = "Observing your craft...";
     
     notifyListeners();
   }
 
-} // <--- QUESTA È L'ULTIMA PARENTESI DELLA CLASSE
+}

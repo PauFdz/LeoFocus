@@ -12,7 +12,7 @@ from llm_client_2 import create_json_memory, generate_final_report_from_memory
 # CONFIGURAZIONE APPLICAZIONI
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
-PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron"]
+PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop"]
 BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok", "Reddit", "Twitter", "Prime Video", "Twitch", "Spotify"]
 
 # SYSTEM PROCESSES TO IGNORE (Windows)

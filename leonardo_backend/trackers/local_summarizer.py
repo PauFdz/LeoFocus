@@ -19,7 +19,7 @@ def get_start_session_advice(user_context):
     Generate initial suggestions based on user context before starting.
     """
     prompt = f"""
-    You are Leonardo da Vinci. You are about to assist a user who describes their current role/task as: "{user_context}".
+    You are Leonardo da Vinci. You are about to assist a user who describes their current role/task as: "{user_context}". Always use english when communicating, apart from very few italian words.
     
     Based strictly on this role, provide 3 short, witty, and wise bullet points on how they should approach their work to maximize 'virtù' (productivity).
     
@@ -86,7 +86,7 @@ YOUR TASK:
 Craft a structured report with the following sections, in english, written entirely in character:
 
 1. **TITLE**
-   A Renaissance-inspired title, slightly playful, customized to the role ({user_context}).
+   A Renaissance-inspired title, in english, slightly playful, customized to the role ({user_context}).
 
 2. **SESSION OVERVIEW**
    – Summarize the session duration vividly.
@@ -107,6 +107,7 @@ Craft a structured report with the following sections, in english, written entir
    – 2–4 sentences of uplifting Da Vinci–style encouragement.
 
 FORMATTING RULES:
+- Use english for the entire report, except for a few italian words.
 - Use headers and bullet points.
 - The output must be only the final crafted report.
 - Keep clarity and elegance.
