@@ -384,8 +384,10 @@ def report_loop_json():
     memory_context = {
         "focus_score": 100,
         "status": "Starting",
+        "user_role": activity_state.get("user_context", "General Creator"),
         "summary_so_far": "Session started.",
-        "leonardo_comment": "I am observing."
+        "leonardo_comment": "I am observing.",
+        "history": []
     }
     
     activity_state["memory_context"] = memory_context
@@ -492,6 +494,26 @@ def report_loop_json():
             try:
                 # Chiediamo a Groq
                 new_memory = create_json_memory(chunk_data, memory_context, activity_state["user_context"])
+                  # ⭐ IMPORTANTE: Aggiungi alla history
+                if 'history' not in new_memory:
+                    new_memory['history'] = memory_context.get('history', [])
+                
+                # Aggiungi questa iterazione alla history
+                history_entry = {
+                    "iteration": len(new_memory['history']) + 1,
+                    "timestamp": now,
+                    "score": new_memory.get('focus_score', 50),
+                    "windows": unique_windows,
+                    "recent_distraction": recent_distraction,
+                    "global_distraction": global_distraction,
+                    "duration": 30
+                }
+                new_memory['history'].append(history_entry)
+                
+                # ⭐ Mantieni history limitata (ultimi 50 entries)
+                if len(new_memory['history']) > 50:
+                    new_memory['history'] = new_memory['history'][-50:]
+                
                 memory_context = new_memory
                 activity_state["memory_context"] = memory_context 
                 
@@ -507,9 +529,11 @@ def report_loop_json():
                 # Debug Log (Per vedere se la matematica funziona)
                 log_debug({
                     "type": "LLM_MEMORY_DUMP", 
+                    "iteration": len(memory_context['history']),
+                    "current_score": memory_context.get('focus_score', 100),
                     "math_distraction_percent": global_distraction,
                     "apps_seen": unique_windows,
-                    "memory_content": memory_context
+                    "history_size": len(memory_context['history'])
                 })
 
             except Exception as e:
@@ -524,6 +548,28 @@ def report_loop_json():
 # -----------------------------
 # MAIN
 # -----------------------------
+
+def _calculate_grade(score):
+    """Calculate letter grade from score"""
+    if score >= 90:
+        return "A+"
+    elif score >= 85:
+        return "A"
+    elif score >= 80:
+        return "A-"
+    elif score >= 75:
+        return "B+"
+    elif score >= 70:
+        return "B"
+    elif score >= 65:
+        return "B-"
+    elif score >= 60:
+        return "C+"
+    elif score >= 50:
+        return "C"
+    else:
+        return "D"
+    
 if __name__ == "__main__":
     # 1. ACQUISIZIONE CONTESTO DA ARGOMENTI (passati da Flutter)
     if len(sys.argv) > 1:
@@ -532,6 +578,23 @@ if __name__ == "__main__":
         user_context = "General Creator"
     
     activity_state["user_context"] = user_context
+
+    # --- MODIFICA CHIAVE: Generazione Consigli Iniziali ---
+    # Prima di partire, chiediamo a Leonardo il consiglio e lo mandiamo a Flutter
+    try:
+        # Nota: Flutter deve gestire un pacchetto con type: "initial_advice"
+        advice = get_start_session_advice(user_context)
+        print(json.dumps({
+            "type": "initial_advice",
+            "content": advice
+        }), flush=True)
+    except Exception as e:
+        log_debug({"error_advice": str(e)})
+    # -------------------------------------------------------
+    try:
+        sys.stdin.readline()
+    except: 
+        pass
 
     # Avvia monitoraggio
     activity_state["session_start"] = time.time()
@@ -559,14 +622,36 @@ if __name__ == "__main__":
         # now generates using the final json instead of the logs like before
         final_memory = activity_state.get("memory_context", {})
 
+        session_duration = activity_state["session_end"] - activity_state["session_start"]
+        sorted_apps = sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
+
+        stats_package = {
+            "duration_seconds": int(session_duration),
+            "total_switches": activity_state["window_switches"],
+            "focus_score": final_memory.get("focus_score", 50),
+            "top_apps": [{"name": k, "seconds": int(v)} for k, v in sorted_apps], # Formattiamo bene per JSON
+            "total_distraction_time": activity_state.get("total_distracted_time", 0),
+            "pause_count": len(activity_state.get("pause_periods", [])),
+            "key_presses": activity_state.get("key_presses", 0),
+            "mouse_clicks": activity_state.get("mouse_clicks", 0)
+        }
+
         try:
             # generating the final json
-            report_markdown = generate_final_report_from_memory(final_memory)
-        
+            #report_markdown = generate_final_report_from_memory(final_memory)
+            report_markdown = generate_final_report_from_memory(
+                final_memory, 
+                activity_state["user_context"],
+                stats_package
+            )
             # Invia il report finale
             final_packet = {
                 "type": "report",
-                "content": report_markdown
+                "content": report_markdown,
+                "stats": stats_package,
+                "final_score": final_memory.get("focus_score", 50),
+                "grade": _calculate_grade(final_memory.get("focus_score", 50)),
+                "total_iterations": len(final_memory.get('history', []))
             }
             print(json.dumps(final_packet), flush=True)
 

@@ -19,6 +19,7 @@ class HomeScreen extends StatefulWidget {
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   late AnimationController _orbController;
   late AnimationController _fadeController;
+  final TextEditingController _roleController = TextEditingController();
 
   @override
   void initState() {
@@ -38,13 +39,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   void dispose() {
     _orbController.dispose();
     _fadeController.dispose();
+    _roleController.dispose();
     super.dispose();
   }
-
-  bool _isConsulting = false; // True quando l'utente ha premuto il primo bottone
-  String _leoReply = "";      // Il testo che dirà Leo
-  String _userGoal = "";      // Memorizziamo l'obiettivo dell'utente
-  final TextEditingController _roleController = TextEditingController(); // Spostiamo il controller qui per non perderlo al rebuild
 
   @override
   Widget build(BuildContext context) {
@@ -104,6 +101,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                                 ),
                               );
                             },
+                            // QUI GESTIAMO TUTTI GLI STATI
                             child: _buildCurrentState(context, leonardo),
                           ),
                         ),
@@ -137,7 +135,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center, 
       children: [
-        // 1. TITOLO
         Text(
           "LEONARDO",
           style: GoogleFonts.cinzel(
@@ -148,10 +145,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           textAlign: TextAlign.center,
         ),
-        
         const SizedBox(height: 4),
-        
-        // 2. SOTTOTITOLO
         Text(
           _getLeonardoSubtitle(leonardo),
           style: GoogleFonts.inter(
@@ -161,142 +155,77 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
           textAlign: TextAlign.center,
         ),
-
-        // 3. STATISTICHE (Se attive)
-        /*if (leonardo.isRunning && !leonardo.isGeneratingReport) ...[
-          const SizedBox(height: 16),
-          _buildQuickStats(leonardo),
-        ],*/
+      ],
+    );
+  }
+  // 2. AGGIUNGI QUESTA VISTA "PONTE"
+  Widget _buildLoadingAdviceView(BuildContext context, LeonardoService leonardo) {
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        // Avatar che pulsa o fisso
+        _buildLeonardoAvatar(leonardo, size: 120),
+        const SizedBox(height: 48),
+        
+        GlassCard(
+          padding: const EdgeInsets.all(32),
+          child: Column(
+            children: [
+              SizedBox(
+                width: 24,
+                height: 24,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2.5,
+                  color: LeonardoTheme.accent,
+                ),
+              ),
+              const SizedBox(height: 24),
+              Text(
+                "Leonardo is contemplating your task...",
+                style: GoogleFonts.cinzel(
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                  color: LeonardoTheme.ink,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                "Preparing wisdom for a ${leonardo.currentContext}...",
+                style: GoogleFonts.inter(
+                  fontSize: 14,
+                  color: LeonardoTheme.inkLight,
+                  fontStyle: FontStyle.italic,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ),
+        ),
       ],
     );
   }
 
-  // AVATAR HELPER (Utilizzato nelle view specifiche)
-  Widget _buildLeonardoAvatar(LeonardoService leonardo, {double size = 100.0}) {
-    Color statusColor;
-    IconData statusIcon;
-    String assetImage = 'assets/leo.png';
-    
-
-    if (leonardo.finalReport != null) {
-      statusColor = LeonardoTheme.success;
-      statusIcon = Icons.check_circle;
-    } else if (leonardo.isRunning || leonardo.isGeneratingReport) {
-      statusColor = LeonardoTheme.accent;
-      statusIcon = Icons.visibility;
-    } else if (_isConsulting) {
-      statusColor = LeonardoTheme.gold;
-      statusIcon = Icons.lightbulb;
-      assetImage = 'assets/happy.png';
-    } else {
-      statusColor = LeonardoTheme.inkLight;
-      statusIcon = Icons.edit_note;
-    }
-
-    return Container(     // cointaner for leo's avatar
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: statusColor.withOpacity(0.2),
-            blurRadius: 12,
-            spreadRadius: 2,
-          ),
-        ],
-        border: Border.all(color: statusColor, width: 3.0),
-      ),
-      child: Stack(
-        children: [
-          Center(
-            child: ClipOval( 
-              child: Image.asset(
-                assetImage,
-                fit: BoxFit.cover, 
-                width: size,
-                height: size,
-              ),
-            ),
-          ),
-          /*Positioned(
-            bottom: 0,
-            right: 0,
-            child: Container(
-              padding: EdgeInsets.all(size * 0.08),
-              decoration: BoxDecoration(
-                color: statusColor,
-                shape: BoxShape.circle,
-                border: Border.all(color: Colors.white, width: 2),
-              ),
-              child: Icon(statusIcon, size: size * 0.2, color: Colors.white),
-            ),
-          ),*/
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQuickStats(LeonardoService leonardo) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: LeonardoTheme.accent.withOpacity(0.1),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: LeonardoTheme.accent.withOpacity(0.2)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.timer_outlined, size: 16, color: LeonardoTheme.accent),
-          const SizedBox(width: 8),
-          Text(
-            _formatTime(leonardo.totalTime),
-            style: GoogleFonts.chivoMono(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: LeonardoTheme.accent,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  String _getLeonardoSubtitle(LeonardoService leonardo) {
-    if (leonardo.finalReport != null) {
-      return "Your Renaissance mentor has spoken";
-    } else if (leonardo.isGeneratingReport) {
-      return "Composing your codex entry...";
-    } else if (leonardo.isRunning) {
-      return "Observing your craft";
-    } else {
-      return "Your Renaissance mentor awaits";
-    }
-  }
-
-  String _formatTime(int seconds) {
-    final h = seconds ~/ 3600;
-    final m = (seconds % 3600) ~/ 60;
-    final s = seconds % 60;
-    if (h > 0) {
-      return '${h}h ${m}m';
-    }
-    return '${m.toString().padLeft(2, '0')}:${s.toString().padLeft(2, '0')}';
-  }
-
+  // LOGICA DI NAVIGAZIONE PRINCIPALE
   Widget _buildCurrentState(BuildContext context, LeonardoService leonardo) {
     if (leonardo.finalReport != null) {
-      return const ReportView(); // now a separate file
-    } else if (leonardo.isRunning || leonardo.isGeneratingReport) {
-      return const RunningView(); // now a separate file
+      return const ReportView(); 
+    } 
+    // NUOVO STATO: Consigli Iniziali
+    else if (leonardo.initialAdvice != null && !leonardo.isAdviceAcknowledged) {
+      return _buildAdviceView(context, leonardo);
+    }
+    else if (leonardo.isWaitingForAdvice) {
+      return _buildLoadingAdviceView(context, leonardo);
+    } 
+    else if (leonardo.isRunning || leonardo.isGeneratingReport) {
+      return const RunningView(); 
     } else {
-      return _buildSetupView(context, leonardo); // in this file
+      return _buildSetupView(context, leonardo);
     }
   }
 
-  // --- SETUP VIEW (PAGINA INIZIALE) ---
+  // --- 1. SETUP VIEW (Inserimento Ruolo) ---
   Widget _buildSetupView(BuildContext context, LeonardoService leonardo) {
     return Center(
       child: SingleChildScrollView(
@@ -304,19 +233,14 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            // --- ROW CENTRALE: LEO + VIGNETTA ---
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 700),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // 1. AVATAR (Si aggiornerà automaticamente grazie alla modifica sopra)
                   _buildLeonardoAvatar(leonardo, size: 140),
-                  
                   const SizedBox(width: 20),
-
-                  // 2. VIGNETTA
                   Expanded(
                     child: Container(
                       padding: const EdgeInsets.all(24),
@@ -341,7 +265,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            _isConsulting ? "Eccellente!" : "Salve, curious mind!", // Titolo dinamico
+                            "Salve, curious mind!",
                             style: GoogleFonts.cinzel(
                               fontSize: 20,
                               fontWeight: FontWeight.bold,
@@ -350,10 +274,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            // Testo dinamico: Default vs Placeholder LLM
-                            _isConsulting 
-                                ? _leoReply 
-                                : "Tell me of your endeavor today. What craft shall you pursue?\n\nI shall observe your focus and offer you my wisdom.",
+                            "Tell me of your endeavor today. What craft shall you pursue?\n\nI shall observe your focus and offer you my wisdom.",
                             style: GoogleFonts.inter(
                               fontSize: 16,
                               height: 1.5,
@@ -371,40 +292,28 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             
             const SizedBox(height: 48),
 
-            // --- INPUT SECTION ---
             ConstrainedBox(
               constraints: const BoxConstraints(maxWidth: 500),
               child: GlassCard(
                 padding: const EdgeInsets.all(32),
                 child: Column(
                   children: [
-                    // MOSTRA IL TEXTFIELD SOLO SE NON STIAMO CONSULTANDO
-                    if (!_isConsulting) 
-                      TextField(
-                        controller: _roleController, // Usiamo il controller definito nello stato
-                        style: GoogleFonts.inter(fontSize: 16, color: LeonardoTheme.ink),
-                        decoration: InputDecoration(
-                          hintText: "e.g., Studying Calculus, Coding a Flutter app...",
-                          prefixIcon: const Icon(Icons.psychology_outlined),
-                          filled: true,
-                          fillColor: Colors.white.withOpacity(0.5),
-                        ),
-                        onSubmitted: (value) {
-                          if (value.isNotEmpty) {
-                            // Simuliamo il click del bottone per coerenza
-                            setState(() {
-                              _userGoal = value;
-                              _isConsulting = true;
-                              // Qui in futuro metterai la chiamata all'LLM
-                              _leoReply = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.";
-                            });
-                          }
-                        },
+                    TextField(
+                      controller: _roleController,
+                      style: GoogleFonts.inter(fontSize: 16, color: LeonardoTheme.ink),
+                      decoration: InputDecoration(
+                        hintText: "e.g., Studying Calculus, Coding a Flutter app...",
+                        prefixIcon: const Icon(Icons.psychology_outlined),
+                        filled: true,
+                        fillColor: Colors.white.withOpacity(0.5),
                       ),
-                    
-                    // Se c'è il textfield mettiamo lo spazio, altrimenti no
-                    if (!_isConsulting) const SizedBox(height: 24),
-
+                      onSubmitted: (value) {
+                        if (value.isNotEmpty) {
+                          leonardo.startSession(value);
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 24),
                     SizedBox(
                       width: double.infinity,
                       child: ElevatedButton(
@@ -413,39 +322,16 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                           padding: const EdgeInsets.symmetric(vertical: 20),
                         ),
                         onPressed: () {
-                          // --- LOGICA A DUE STEP ---
-                          if (!_isConsulting) {
-                            // STEP 1: Conferma input e mostra "Happy Leo"
-                            if (_roleController.text.isNotEmpty) {
-                              setState(() {
-                                _userGoal = _roleController.text;
-                                _isConsulting = true;
-                                // Placeholder LLM response
-                                _leoReply = "Lorem ipsum dolor sit amet, consectetur adipiscing elit. Virtù and focus shall be your guides today!";
-                              });
-                            }
-                          } else {
-                            // STEP 2: Avvia davvero la sessione
-                            leonardo.startSession(_userGoal);
-                            // Resetta lo stato locale per la prossima volta (opzionale)
-                            setState(() {
-                              _isConsulting = false;
-                              _roleController.clear();
-                            });
+                          if (_roleController.text.isNotEmpty) {
+                            leonardo.startSession(_roleController.text);
                           }
                         },
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              _isConsulting ? "BEGIN" : "CONSULT LEONARDO", 
-                              style: const TextStyle(fontSize: 15, letterSpacing: 1)
-                            ),
+                            const Text("CONSULT LEONARDO", style: TextStyle(fontSize: 15, letterSpacing: 1)),
                             const SizedBox(width: 12),
-                            Icon(
-                              _isConsulting ? Icons.timer_outlined : Icons.arrow_forward_rounded, 
-                              size: 20
-                            ),
+                            const Icon(Icons.arrow_forward_rounded, size: 20),
                           ],
                         ),
                       ),
@@ -459,367 +345,88 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ),
     );
   }
-}
 
-
-/*
-  // --- RUNNING VIEW (active session) ---
-  Widget _buildRunningView(BuildContext context, LeonardoService leonardo) {
+  // --- 2. ADVICE VIEW (Nuova vista consigli) ---
+  Widget _buildAdviceView(BuildContext context, LeonardoService leonardo) {
     return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
       children: [
+        _buildLeonardoAvatar(leonardo, size: 120),
+        const SizedBox(height: 32),
+        
         Expanded(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              // Left Column: Timer + Active Window
-              Expanded(
-                flex: 2,
-                child: Column(
-                  children: [
-                    Expanded(
-                      child: GlassCard(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Icon(Icons.hourglass_empty_rounded, 
-                              size: 48, 
-                              color: LeonardoTheme.accent.withOpacity(0.6)),
-                            const SizedBox(height: 24),
-                            Text(
-                              _formatTime(leonardo.totalTime),
-                              style: GoogleFonts.chivoMono(
-                                fontSize: 64,
-                                fontWeight: FontWeight.w300,
-                                color: LeonardoTheme.ink,
-                                letterSpacing: -2,
-                              ),
-                            ),
-                            const SizedBox(height: 8),
-                            Text(
-                              "SESSION DURATION",
-                              style: GoogleFonts.inter(
-                                fontSize: 11,
-                                fontWeight: FontWeight.w600,
-                                letterSpacing: 1.5,
-                                color: LeonardoTheme.inkLight,
-                              ),
-                            ),
-                          ],
+          child: GlassCard(
+            padding: EdgeInsets.zero,
+            child: Column(
+              children: [
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  decoration: BoxDecoration(
+                    color: LeonardoTheme.accent.withOpacity(0.1),
+                    border: Border(bottom: BorderSide(color: LeonardoTheme.accent.withOpacity(0.1))),
+                  ),
+                  child: Text(
+                    "LEONARDO'S PRECEPTS",
+                    textAlign: TextAlign.center,
+                    style: GoogleFonts.cinzel(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: LeonardoTheme.accent,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+                
+                Expanded(
+                  child: SingleChildScrollView(
+                    child: Padding(
+                      padding: const EdgeInsets.all(32.0),
+                      child: MarkdownBody(
+                        data: leonardo.initialAdvice ?? "Consulting the codex...",
+                        styleSheet: MarkdownStyleSheet(
+                          p: GoogleFonts.inter(
+                            fontSize: 18,
+                            height: 1.6,
+                            color: LeonardoTheme.ink,
+                          ),
+                          listBullet: TextStyle(
+                            color: LeonardoTheme.accent,
+                            fontSize: 18,
+                          ),
+                          strong: TextStyle(
+                            color: LeonardoTheme.accent,
+                            fontWeight: FontWeight.bold,
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 16),
-                    GlassCard(
-                      padding: const EdgeInsets.all(24),
-                      child: Row(
-                        children: [
-                          Container(
-                            padding: const EdgeInsets.all(10),
-                            decoration: BoxDecoration(
-                              color: LeonardoTheme.accent.withOpacity(0.1),
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            child: Icon(Icons.window_rounded, 
-                              color: LeonardoTheme.accent, size: 24),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  "CURRENT FOCUS",
-                                  style: GoogleFonts.inter(
-                                    fontSize: 10,
-                                    fontWeight: FontWeight.bold,
-                                    letterSpacing: 1.2,
-                                    color: LeonardoTheme.inkLight,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  leonardo.activeWindow,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: GoogleFonts.inter(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: LeonardoTheme.ink,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(width: 16),
-              
-              // Right Column: App Usage
-              Expanded(
-                flex: 3,
-                child: GlassCard(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(Icons.apps_rounded, 
-                            color: LeonardoTheme.accent, size: 20),
-                          const SizedBox(width: 12),
-                          Text(
-                            "TOOLS IN USE",
-                            style: GoogleFonts.inter(
-                              fontSize: 11,
-                              fontWeight: FontWeight.bold,
-                              letterSpacing: 1.5,
-                              color: LeonardoTheme.inkLight,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 20),
-                      Expanded(
-                        child: leonardo.topApps.isEmpty
-                            ? Center(
-                                child: Text(
-                                  "Gathering data...",
-                                  style: GoogleFonts.inter(
-                                    color: LeonardoTheme.inkLight,
-                                    fontStyle: FontStyle.italic,
-                                  ),
-                                ),
-                              )
-                            : ListView.separated(
-                                itemCount: leonardo.topApps.length,
-                                separatorBuilder: (c, i) => Divider(
-                                  color: LeonardoTheme.inkLight.withOpacity(0.1),
-                                  height: 24,
-                                ),
-                                itemBuilder: (ctx, index) {
-                                  final app = leonardo.topApps[index];
-                                  final percentage = leonardo.totalTime > 0
-                                      ? ((app[1] as num) / leonardo.totalTime * 100)
-                                      : 0.0;
-                                  
-                                  return Row(
-                                    children: [
-                                      Container(
-                                        width: 36,
-                                        height: 36,
-                                        decoration: BoxDecoration(
-                                          gradient: LinearGradient(
-                                            colors: [
-                                              LeonardoTheme.accent.withOpacity(0.8),
-                                              LeonardoTheme.accent.withOpacity(0.6),
-                                            ],
-                                          ),
-                                          borderRadius: BorderRadius.circular(10),
-                                        ),
-                                        child: Center(
-                                          child: Text(
-                                            "${index + 1}",
-                                            style: GoogleFonts.inter(
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
-                                              app[0].toString(),
-                                              style: GoogleFonts.inter(
-                                                fontWeight: FontWeight.w600,
-                                                fontSize: 14,
-                                              ),
-                                              maxLines: 1,
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                            const SizedBox(height: 4),
-                                            ClipRRect(
-                                              borderRadius: BorderRadius.circular(4),
-                                              child: LinearProgressIndicator(
-                                                value: percentage / 100,
-                                                minHeight: 4,
-                                                backgroundColor: Colors.grey.shade200,
-                                                valueColor: AlwaysStoppedAnimation(
-                                                  LeonardoTheme.accent.withOpacity(0.7),
-                                                ),
-                                              ),
-                                            ),
-                                          ],
-                                        ),
-                                      ),
-                                      const SizedBox(width: 16),
-                                      Column(
-                                        crossAxisAlignment: CrossAxisAlignment.end,
-                                        children: [
-                                          Text(
-                                            "${(app[1] as num).toInt()}s",
-                                            style: GoogleFonts.chivoMono(
-                                              fontWeight: FontWeight.w600,
-                                              fontSize: 13,
-                                            ),
-                                          ),
-                                          Text(
-                                            "${percentage.toStringAsFixed(0)}%",
-                                            style: GoogleFonts.inter(
-                                              fontSize: 11,
-                                              color: LeonardoTheme.inkLight,
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                    ],
-                                  );
-                                },
-                              ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 16),
-        
-        if (leonardo.isGeneratingReport)
-          GlassCard(
-            padding: const EdgeInsets.all(20),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: LeonardoTheme.accent,
-                  ),
-                ),
-                const SizedBox(width: 16),
-                Text(
-                  "Leonardo is inscribing his observations...",
-                  style: GoogleFonts.inter(
-                    fontStyle: FontStyle.italic,
-                    color: LeonardoTheme.inkLight,
                   ),
                 ),
               ],
             ),
-          )
-        else
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: LeonardoTheme.ink,
-                padding: const EdgeInsets.symmetric(vertical: 20),
-              ),
-              onPressed: () => leonardo.stopSession(),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.stop_circle_outlined, size: 20),
-                  const SizedBox(width: 12),
-                  const Text("END SESSION", style: TextStyle(fontSize: 15, letterSpacing: 1)),
-                ],
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-*/
-
-/*
-  // --- REPORT VIEW (FINE SESSIONE) ---
-  Widget _buildReportView(BuildContext context, LeonardoService leonardo) {
-    return Column(
-      children: [
-        Expanded(
-          child: GlassCard(
-            padding: EdgeInsets.zero,
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: SingleChildScrollView(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Colors.white.withOpacity(0.95),
-                        LeonardoTheme.gold.withOpacity(0.05),
-                      ],
-                    ),
-                  ),
-                  child: Markdown(
-                    data: leonardo.finalReport!,
-                    padding: const EdgeInsets.all(48),
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    styleSheet: MarkdownStyleSheet(
-                      h1: GoogleFonts.cinzel(
-                        fontSize: 36,
-                        fontWeight: FontWeight.bold,
-                        color: LeonardoTheme.ink,
-                      ),
-                      h2: GoogleFonts.cinzel(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w600,
-                        color: LeonardoTheme.accent,
-                        height: 1.5,
-                      ),
-                      p: GoogleFonts.inter(
-                        fontSize: 16,
-                        height: 1.7,
-                        color: LeonardoTheme.ink.withOpacity(0.85),
-                      ),
-                      listBullet: TextStyle(color: LeonardoTheme.accent),
-                      blockquote: GoogleFonts.inter(
-                        color: LeonardoTheme.inkLight,
-                        fontStyle: FontStyle.italic,
-                        fontSize: 15,
-                      ),
-                      blockquoteDecoration: BoxDecoration(
-                        border: Border(
-                          left: BorderSide(color: LeonardoTheme.gold, width: 4),
-                        ),
-                        color: LeonardoTheme.gold.withOpacity(0.08),
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
           ),
         ),
-        const SizedBox(height: 16),
+        
+        const SizedBox(height: 32),
+
         SizedBox(
           width: double.infinity,
           child: ElevatedButton(
             style: ElevatedButton.styleFrom(
               backgroundColor: LeonardoTheme.accent,
               padding: const EdgeInsets.symmetric(vertical: 20),
+              elevation: 4,
+              shadowColor: LeonardoTheme.accent.withOpacity(0.4),
             ),
-            onPressed: () => leonardo.reset(),
+            onPressed: () => leonardo.acknowledgeAdvice(),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                const Icon(Icons.refresh_rounded, size: 20),
+                const Text("I SHALL FOLLOW THY COUNSEL", 
+                  style: TextStyle(fontSize: 15, letterSpacing: 1.5, fontWeight: FontWeight.bold)),
                 const SizedBox(width: 12),
-                const Text("NEW SESSION", style: TextStyle(fontSize: 15, letterSpacing: 1)),
+                const Icon(Icons.check_circle_outline, size: 22),
               ],
             ),
           ),
@@ -827,49 +434,61 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
       ],
     );
   }
-}
-*/
 
+  // UTILITY
+  Widget _buildLeonardoAvatar(LeonardoService leonardo, {double size = 100.0}) {
+    Color statusColor;
+    String assetImage = 'assets/leo.png';
+    
+    if (leonardo.finalReport != null) {
+      statusColor = LeonardoTheme.success;
+    } else if (leonardo.initialAdvice != null && !leonardo.isAdviceAcknowledged) {
+      statusColor = LeonardoTheme.gold; // Colore oro quando dà consigli
+    } else if (leonardo.isRunning) {
+      statusColor = LeonardoTheme.accent;
+    } else {
+      statusColor = LeonardoTheme.inkLight;
+    }
 
-/*
-// --- WIDGET DI SUPPORTO (GlassCard) ---
-class GlassCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsetsGeometry padding;
-
-  const GlassCard({
-    super.key,
-    required this.child,
-    this.padding = const EdgeInsets.all(32),
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(24),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 30, sigmaY: 30),
-        child: Container(
-          padding: padding,
-          decoration: BoxDecoration(
-            color: Colors.white.withOpacity(0.7),
-            borderRadius: BorderRadius.circular(24),
-            border: Border.all(
-              color: Colors.white.withOpacity(0.5),
-              width: 1.5,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.03),
-                blurRadius: 30,
-                offset: const Offset(0, 10),
-              ),
-            ],
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: Colors.white,
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withOpacity(0.2),
+            blurRadius: 12,
+            spreadRadius: 2,
           ),
-          child: child,
+        ],
+        border: Border.all(color: statusColor, width: 3.0),
+      ),
+      child: Center(
+        child: ClipOval( 
+          child: Image.asset(
+            assetImage,
+            fit: BoxFit.cover, 
+            width: size,
+            height: size,
+          ),
         ),
       ),
     );
   }
+
+  String _getLeonardoSubtitle(LeonardoService leonardo) {
+    if (leonardo.finalReport != null) {
+      return "Your Renaissance mentor has spoken";
+    } else if (leonardo.initialAdvice != null && !leonardo.isAdviceAcknowledged) {
+      return "Wisdom for the task ahead";
+    } else if (leonardo.isGeneratingReport) {
+      return "Composing your codex entry...";
+    } else if (leonardo.isRunning) {
+      return "Observing your craft with keen eyes";
+    } else {
+      return "Your Renaissance mentor awaits";
+    }
+  }
 }
-*/

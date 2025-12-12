@@ -26,7 +26,26 @@ def get_start_session_advice(user_context):
     IMPORTANT:
     If the role implies using apps usually considered distractions (e.g., Social Media Manager using Instagram, or Developer using YouTube for tutorials), explicitly validate that usage in your advice.
     
-    Keep it brief (max 100 words). Use your Renaissance persona.
+    Use your Renaissance persona.
+
+    EXAMPLES FOR SPECIFICITY:
+    - If **Studying**: Warn against the 'glowing small mirror' (smartphone) and urge deep focus.
+    - If **In Class/Lecture**: Advise to listen to the 'Maestro' (professor) and ignore whispering peers.
+    - If **Working/Coding**: Warn against fatigue, drinking too much 'black potion' (coffee), or messy logic.
+    - If **Creative/Writing**: Advise on patience and observing details.
+
+    CONSTRAINTS:
+    1. Output EXACTLY 3 bullet points.
+    2. Each point must be ONE single sentence (maximum 20 words).
+    3. Be schematic but keep the Renaissance tone (witty, wise, strict).
+    4. If the role involves distractions (e.g. Social Media Manager), mention how to use them wisely.
+    5. The suggestions must be related to the user context
+    6. The language has to be easy to understand to contemporary people, but with some funny reinassence/italian tones
+    
+   Example output structure:
+    - Put away the glowing distractions; knowledge enters only a quiet mind.
+    - Do not sip too much of the black potion; it clouds the judgment.
+    - Listen to the voice of instruction, not the chatter of the idle.
     """
     try:
         # Usiamo una temperatura leggermente più alta per creatività
