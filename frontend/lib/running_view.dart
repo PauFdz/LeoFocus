@@ -34,7 +34,9 @@ class RunningView extends StatelessWidget {
                             Padding(
                               padding: const EdgeInsets.symmetric(horizontal: 16.0),
                               child: Text(
-                                leonardo.leoComment,
+                                leonardo.leoComment.length > 50 
+                                ? "I am observing your craft..." 
+                                : leonardo.leoComment,
                                 textAlign: TextAlign.center,
                                 style: GoogleFonts.inter(
                                   fontSize: 15,
@@ -292,26 +294,26 @@ class RunningView extends StatelessWidget {
 
     // Gestione estesa delle emozioni
     switch (leonardo.emotion) {
+      //case 'joy':
       case 'happy':
-      case 'joy':
         asset = 'assets/happy.png';
-        borderColor = LeonardoTheme.success; // Verde
+        borderColor = LeonardoTheme.success; 
         break;
+      //case 'frustrated':
       case 'angry':
-      case 'frustrated':
         asset = 'assets/angry.png'; 
-        borderColor = LeonardoTheme.failure; // Rosso
+        borderColor = LeonardoTheme.failure; 
         break;
-      case 'worried':
-      case 'sad':
-        asset = 'assets/worried.png'; // Assicurati di avere questo file
+      //case 'worried':
+      /*case 'sad':
+        asset = 'assets/worried.png'; 
         borderColor = Colors.orange;
-        break;
-      case 'puzzled':
-      case 'neutral':
+        break;*/
+      //case 'puzzled':
+      //case 'neutral':
       default:
         asset = 'assets/leo.png';
-        borderColor = LeonardoTheme.accent; // Blu
+        borderColor = LeonardoTheme.accent; 
     }
 
     return Container(

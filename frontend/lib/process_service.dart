@@ -95,7 +95,11 @@ class LeonardoService extends ChangeNotifier {
 
       _process!.stderr.transform(utf8.decoder).listen((data) {
         if (data.trim().isNotEmpty) {
+          if (data.contains("[DEBUG]") || data.contains("🛑") || data.contains("===")) {
+          print("PYTHON LOG: ${data.trim()}\n"); 
+        } else {
           print("❌ PYTHON ERROR: $data"); 
+        }
         }
       });
 

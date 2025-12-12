@@ -392,7 +392,7 @@ Generate a Markdown report with this EXACT structure:
 
 | Metric | Value | Status |
 |:-------|:------|:-------|
-| **Overall Score** | **{final_focus_score}**/100 {focus_bar} | {focus_status} |
+| **Overall Score** | **{final_focus_score}**/100 | {focus_status} |
 | **Grade** | **{grade}** | {focus_color} |
 | **Deep Work** | **{deep_work_minutes}min** / {total_minutes}min | {deep_work_percentage}% |
 | **Distractions** | {distractions_count} events | {distraction_status} |

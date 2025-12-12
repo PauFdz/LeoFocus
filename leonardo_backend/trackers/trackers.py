@@ -12,7 +12,7 @@ from llm_client_2 import create_json_memory, generate_final_report_from_memory
 # CONFIGURAZIONE APPLICAZIONI
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
-PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop"]
+PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop", "Notes", "Note", "Obsidian", "Notion", "Sublime Text", "IntelliJ IDEA", "Xcode", "Android Studio"]
 BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok", "Reddit", "Twitter", "Prime Video", "Twitch", "Spotify"]
 
 # SYSTEM PROCESSES TO IGNORE (Windows)
@@ -214,6 +214,8 @@ def get_document_name(window_name):
 
 
 def is_browser_distraction(window_name):
+    if window_name is None or not isinstance(window_name, str):     # returns false when it cant read the page title instead of creating an error
+        return False                                                # may happen when switching windows or if the window has no title
     doc_name = get_document_name(window_name)
     if any(browser in window_name for browser in ["Chrome", "Safari", "Firefox", "Edge"]):
         for keyword in BROWSER_DISTRACTIONS:
@@ -575,8 +577,23 @@ if __name__ == "__main__":
     if len(sys.argv) > 1:
         user_context = sys.argv[1]
     else:
-        user_context = "General Creator"
-    
+        user_context = "General Work Session"
+
+    try:
+        # --- ADVICE PRE-SESSION ---
+        # asking llm for advice
+        startup_advice = get_start_session_advice(user_context)
+
+        # sending to flutter
+        print(json.dumps({
+            "type": "leo_comment",
+            "content": startup_advice,
+            #"emotion": "interested"
+        }), flush=True)
+
+    except Exception as e:
+        sys.stderr.write(f"Error getting startup advice: {e}\n")
+            
     activity_state["user_context"] = user_context
 
     # --- MODIFICA CHIAVE: Generazione Consigli Iniziali ---
