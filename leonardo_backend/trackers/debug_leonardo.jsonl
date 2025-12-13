@@ -535,3 +535,11 @@
 {"type": "LLM_MEMORY_DUMP", "iteration": 3, "current_score": 58, "math_distraction_percent": 58, "apps_seen": ["Notes (Notes)", "WhatsApp (WhatsApp)", "Notability (Notability)"], "history_size": 3}
 {"type": "LLM_MEMORY_DUMP", "iteration": 4, "current_score": 43, "math_distraction_percent": 43, "apps_seen": ["Notes (Notes)"], "history_size": 4}
 {"type": "LLM_MEMORY_DUMP", "iteration": 5, "current_score": 34, "math_distraction_percent": 34, "apps_seen": ["Notes (Notes)"], "history_size": 5}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 21, "math_distraction_percent": 79, "apps_seen": ["WhatsApp (WhatsApp)", "leonardoapp (leonardoapp)"], "history_size": 1}
+{"type": "LLM_MEMORY_DUMP", "iteration": 2, "current_score": 57, "math_distraction_percent": 57, "apps_seen": ["WhatsApp (WhatsApp)", "leonardoapp (leonardoapp)"], "history_size": 2}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 92, "math_distraction_percent": 92, "apps_seen": ["leonardoapp (leonardoapp)", "WhatsApp (WhatsApp)"], "history_size": 1}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 100, "math_distraction_percent": 0, "apps_seen": ["leonardoapp (leonardoapp)", "WhatsApp (WhatsApp)"], "history_size": 1}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 92, "math_distraction_percent": 92, "apps_seen": ["leonardoapp (leonardoapp)", "WhatsApp (WhatsApp)"], "history_size": 1}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 92, "math_distraction_percent": 92, "apps_seen": ["leonardoapp (leonardoapp)", "WhatsApp (WhatsApp)"], "history_size": 1}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 14, "math_distraction_percent": 86, "apps_seen": ["leonardoapp (leonardoapp)", "TV (TV)"], "history_size": 1}
+{"type": "LLM_MEMORY_DUMP", "iteration": 1, "current_score": 89, "math_distraction_percent": 89, "apps_seen": ["WhatsApp (WhatsApp)", "leonardoapp (leonardoapp)"], "history_size": 1}

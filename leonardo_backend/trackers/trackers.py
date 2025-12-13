@@ -393,53 +393,49 @@ def report_loop_json():
     }
     
     activity_state["memory_context"] = memory_context
-    
     last_chunk_time = time.time()
     
-    # Accumulatori per il chunk di 30 secondi
-    chunk_windows_list = []      # Nomi completi (App + Titolo)
-    chunk_distraction_hits = 0   # Contatore secondi di distrazione
-    chunk_samples = 0            # Contatore totale secondi
+    # Accumulatori
+    chunk_windows_list = []      
+    chunk_distraction_hits = 0   
+    chunk_samples = 0            
 
     while True:
         time.sleep(1)
         now = time.time()
         
-        # 1. Recupera App e Titolo (es. "Google Chrome", "YouTube - Funny Cats")
         app_name = activity_state["active_window"]
         doc_name = ""
         
-        # Se c'è una finestra attiva, cerchiamo il dettaglio (Titolo Tab/Documento)
         if app_name:
             doc_name = get_document_name(app_name)
-            
-            # Aggiorniamo i tempi globali (logica esistente)
             elapsed = now - activity_state["last_switch_time"]
             activity_state["window_times"][app_name] = activity_state["window_times"].get(app_name, 0) + elapsed
             activity_state["last_switch_time"] = now
 
-        # 2. Determina se è una distrazione ORA (ogni secondo)
+        # --- 1. RILEVAMENTO DISTRAZIONI PIÙ INTELLIGENTE ---
         is_distracted_now = False
         full_window_name = app_name if app_name else "Idle"
         
         if app_name:
-            # Aggiungiamo il titolo al nome per chiarezza
             if doc_name:
                 full_window_name = f"{app_name} ({doc_name})"
             
-            # Check 1: L'App è nella lista nera? (es. Spotify app)
-            if app_name in DISTRACTING_APPS:
+            # FIX: Controllo se una delle app vietate è CONTENUTA nel nome (non match esatto)
+            # Es. "WhatsApp" in "(1) WhatsApp" -> True
+            is_distracted_by_app = any(d_app.lower() in app_name.lower() for d_app in DISTRACTING_APPS)
+            
+            if is_distracted_by_app:
                 is_distracted_now = True
             
-            # Check 2: È un browser e il sito è nella lista nera?
+            # Check Browser
             elif app_name in ["Google Chrome", "Safari", "Firefox", "Microsoft Edge", "Arc"]:
-                # Controlla keywords nel titolo (es. "YouTube" in "YouTube - Video")
                 for distractor in BROWSER_DISTRACTIONS:
                     if distractor.lower() in doc_name.lower():
                         is_distracted_now = True
                         break
         
-        # 3. Accumula dati per il Chunk (Matematica)
+        # Accumula dati
         chunk_samples += 1
         if is_distracted_now:
             chunk_distraction_hits += 1
@@ -448,10 +444,10 @@ def report_loop_json():
         if app_name:
             chunk_windows_list.append(full_window_name)
 
-        # 4. Invia dati UI a Flutter (Timer veloce)
+        # Invia dati UI a Flutter
         data_packet = {
             "type": "update",
-            "active_window": full_window_name, # Ora mostriamo anche il titolo a Flutter!
+            "active_window": full_window_name,
             "total_time": int(now - activity_state["session_start"]),
             "switches": activity_state['window_switches'],
             "keys": activity_state['key_presses'],
@@ -459,48 +455,57 @@ def report_loop_json():
             "is_inactive": (now - activity_state["last_input_time"]) > activity_state["inactive_threshold"],
             "top_apps": sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
         }
-
         print(json.dumps(data_packet), flush=True)
 
-        # === Check every 30 seconds ===
+        # === CHECK EVERY 30 SECONDS ===
         if now - last_chunk_time >= 30:
             
-            # Don't use this anymore
-            """distraction_percent = 0
-            if chunk_samples > 0:
-                distraction_percent = int((chunk_distraction_hits / chunk_samples) * 100)"""
-
-                # A. Distrazione RECENTE (ultimi 30s) -> Per l'emozione immediata
+            # Calcolo Percentuali Matematiche
             recent_distraction = 0
             if chunk_samples > 0:
                 recent_distraction = int((chunk_distraction_hits / chunk_samples) * 100)
 
-            # B. Distrazione GLOBALE (tutta la sessione) -> Per il Focus Score stabile
             session_duration = now - activity_state["session_start"]
             global_distraction = 0
             if session_duration > 0:
                 global_distraction = int((activity_state["total_distracted_time"] / session_duration) * 100)
             
-            # Prepariamo i dati per l'LLM
-            # Usiamo set() per mandare solo la lista unica delle app usate
             unique_windows = list(set(chunk_windows_list))
             
             chunk_data = {
-                "windows": unique_windows, # L'LLM vedrà "Chrome (YouTube)"
+                "windows": unique_windows,
                 "duration": 30,
-                #"distraction_level": distraction_percent, 
-                "recent_distraction": recent_distraction, # <--- Modifica qui
-                "global_distraction": global_distraction  # <--- Modifica qui
+                "recent_distraction": recent_distraction, 
+                "global_distraction": global_distraction
             }
             
             try:
-                # Chiediamo a Groq
+                # Chiediamo all'LLM di valutare
                 new_memory = create_json_memory(chunk_data, memory_context, activity_state["user_context"])
-                  # ⭐ IMPORTANTE: Aggiungi alla history
+                
+                # --- 2. IL POLIZIOTTO CATTIVO (MATH OVERRIDE) ---
+                # Se l'LLM è troppo gentile, correggiamo noi il voto.
+                # Regola: Il focus score non può essere superiore a (100 - % distrazione recente)
+                max_allowed_score = 100 - recent_distraction
+                
+                # Bonus di tolleranza: diamo +10 punti extra se non è 100% distrazione, ma non oltre 100
+                if recent_distraction < 100:
+                    max_allowed_score += 10 
+                
+                llm_score = new_memory.get('focus_score', 50)
+                
+                # Applichiamo la correzione se l'LLM ha dato voti troppo alti
+                if llm_score > max_allowed_score:
+                    # Se l'LLM dice 90 ma tu eri su WhatsApp (90% distr), max_allowed è 20.
+                    # Riscriviamo lo score brutale.
+                    new_memory['focus_score'] = max_allowed_score
+                    new_memory['leonardo_comment'] = "I see your distraction clearly. Do not deceive yourself." # Forziamo un commento severo se serve
+                
+                # -----------------------------------------------
+
                 if 'history' not in new_memory:
                     new_memory['history'] = memory_context.get('history', [])
                 
-                # Aggiungi questa iterazione alla history
                 history_entry = {
                     "iteration": len(new_memory['history']) + 1,
                     "timestamp": now,
@@ -512,32 +517,31 @@ def report_loop_json():
                 }
                 new_memory['history'].append(history_entry)
                 
-                # ⭐ Mantieni history limitata (ultimi 50 entries)
                 if len(new_memory['history']) > 50:
                     new_memory['history'] = new_memory['history'][-50:]
                 
                 memory_context = new_memory
                 activity_state["memory_context"] = memory_context 
                 
-                # Pacchetto per Flutter
+                # Determina emozione basata sui DATI REALI, non sull'LLM
+                current_emotion = 'neutral'
+                current_score = memory_context.get('focus_score', 100)
+                
+                if recent_distraction > 50:
+                    current_emotion = 'angry'
+                elif current_score < 60:
+                    current_emotion = 'worried'
+                elif current_score > 85:
+                    current_emotion = 'happy'
+
                 leo_packet = {
                     "type": "leo_comment",
                     "content": memory_context.get('leonardo_comment', 'Observing...'),
-                    "focus_score": memory_context.get('focus_score', 100),
-                    "emotion": memory_context.get('leonardo_emotion', 'neutral') 
+                    "focus_score": current_score,
+                    "emotion": current_emotion # Usiamo l'emozione calcolata da Python
                 }
                 print(json.dumps(leo_packet), flush=True)
                 
-                # Debug Log (Per vedere se la matematica funziona)
-                log_debug({
-                    "type": "LLM_MEMORY_DUMP", 
-                    "iteration": len(memory_context['history']),
-                    "current_score": memory_context.get('focus_score', 100),
-                    "math_distraction_percent": global_distraction,
-                    "apps_seen": unique_windows,
-                    "history_size": len(memory_context['history'])
-                })
-
             except Exception as e:
                 print(f"⚠️ LLM Error: {e}", file=sys.stderr)
 
@@ -578,6 +582,26 @@ if __name__ == "__main__":
         user_context = sys.argv[1]
     else:
         user_context = "General Work Session"
+
+    # --- 🌟 MAGIC FIX: CONTEXT OVERRIDE 🌟 ---
+    # Rende Leonardo intelligente: se dici che usi WhatsApp, lui non si arrabbia.
+    print(f"DEBUG: Analyzing context for exceptions: '{user_context}'")
+    context_lower = user_context.lower()
+
+    # 1. Controllo App Standalone (es. WhatsApp, Spotify)
+    # Usiamo list(...) per creare una copia e poter modificare l'originale mentre iteriamo
+    for app in list(DISTRACTING_APPS): 
+        if app.lower() in context_lower:
+            print(f"✨ Context Override: {app} detected in goal. Moving to PRODUCTIVE.")
+            DISTRACTING_APPS.remove(app)
+            PRODUCTIVE_APPS.append(app)
+
+    # 2. Controllo Browser (es. YouTube, Facebook)
+    for site in list(BROWSER_DISTRACTIONS):
+        if site.lower() in context_lower:
+            print(f"✨ Context Override: {site} allowed in browser.")
+            BROWSER_DISTRACTIONS.remove(site)
+    # -------------------------------------------------------
 
     try:
         # --- ADVICE PRE-SESSION ---
