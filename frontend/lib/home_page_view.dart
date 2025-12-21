@@ -131,29 +131,38 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildHeader(BuildContext context, LeonardoService leonardo) {
+Widget _buildHeader(BuildContext context, LeonardoService leonardo) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.center, 
       children: [
         Text(
-          "LEONARDO",
-          style: GoogleFonts.cinzel(
-            fontSize: 42,
-            fontWeight: FontWeight.w700,
+          "LeoFocus", 
+          style: GoogleFonts.italianno(
+            fontSize: 96, 
+            fontWeight: FontWeight.w500,
             color: LeonardoTheme.ink,
-            letterSpacing: 1.5,
+            // 1. MODIFICA FONDAMENTALE: height < 1.0 "mangia" lo spazio vuoto
+            height: 0.8, 
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: 4),
-        Text(
-          _getLeonardoSubtitle(leonardo),
-          style: GoogleFonts.inter(
-            fontSize: 13,
-            color: LeonardoTheme.inkLight,
-            fontStyle: FontStyle.italic,
+        
+        // 2. Rimuovi o commenta il SizedBox se vuoi che siano appiccicati
+        // const SizedBox(height: 4), 
+        
+        // Se vuoi sovrapporli leggermente o avvicinarli ancora di più, 
+        // puoi usare Transform.translate per tirare su il sottotitolo:
+        Transform.translate(
+          offset: const Offset(0, -10), // Valore negativo per salire (es. -10, -15)
+          child: Text(
+            _getLeonardoSubtitle(leonardo),
+            style: GoogleFonts.inter(
+              fontSize: 13,
+              color: LeonardoTheme.inkLight,
+              fontStyle: FontStyle.italic,
+            ),
+            textAlign: TextAlign.center,
           ),
-          textAlign: TextAlign.center,
         ),
       ],
     );
