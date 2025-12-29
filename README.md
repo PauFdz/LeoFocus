@@ -62,8 +62,6 @@ Python Backend (trackers.py)
    ├── Session Memory (JSON)
    └── LLM Reasoning Engine
            ├── Groq (default)
-           ├── Hugging Face
-           └── Ollama (local)
 ```
 
 ### Why this architecture?
@@ -245,24 +243,22 @@ Developed as part of coursework at **Politecnico di Milano** for the CSI course,
 MSc Student @ Politecnico di Milano  
 Artificial Intelligence · Human–Computer Interaction · Systems
 
-- 💼 LinkedIn: https://www.linkedin.com/in/your-linkedin-username  
-- 🧑‍💻 GitHub: https://github.com/your-github-username  
-- 📧 Email: your.email@domain.com (optional)
+- 💼 LinkedIn: https://www.linkedin.com/in/pau-fern%C3%A1ndez-cester-9b7053252/  
+- 🧑‍💻 GitHub: https://github.com/PauFdz
 
 **Filippo Galletta**  
 MSc Student @ Politecnico di Milano  
 Human–Computer Interaction · Systems
 
 - 💼 LinkedIn: https://www.linkedin.com/in/filippo-galletta/
-- 📧 Email: your.email@domain.com (optional)
+- 🧑‍💻 GitHub: https://github.com/your-github-username
 
 **David Ravelli**  
 MSc Student @ Politecnico di Milano  
 Artificial Intelligence · Human–Computer Interaction · Systems
 
 - 💼 LinkedIn: https://www.linkedin.com/in/your-linkedin-username  
-- 🧑‍💻 GitHub: https://github.com/your-github-username  
-- 📧 Email: your.email@domain.com (optional)
+- 🧑‍💻 GitHub: https://github.com/your-github-username
 
 ---
 
