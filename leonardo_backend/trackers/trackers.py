@@ -8,12 +8,19 @@ import os
 from local_summarizer import summarize_activity_with_llm, get_start_session_advice
 from llm_client_2 import create_json_memory, generate_final_report_from_memory
 
+# FORCE UTF-8 ON WINDOWS
+if sys.platform.startswith("win"):
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
+
 # -----------------------------
 # CONFIGURAZIONE APPLICAZIONI
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
 PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop", "Notes", "Note", "Obsidian", "Notion", "Sublime Text", "IntelliJ IDEA", "Xcode", "Android Studio"]
 BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok", "Reddit", "Twitter", "Prime Video", "Twitch", "Spotify"]
+STOP_REQUESTED = False
 
 # SYSTEM PROCESSES TO IGNORE (Windows)
 SYSTEM_PROCESSES = [
@@ -243,7 +250,7 @@ def get_all_windows():
                       if w.title and len(w.title) > 0 and not is_system_process(w.title)]
             return windows
     except Exception as e:
-        print(f"⚠️ Error getting windows: {e}")
+        print(f"Error getting windows: {e}")
         return []
 
 # -----------------------------
@@ -265,7 +272,7 @@ def monitor_active_window():
         if inactive_elapsed > activity_state["inactive_threshold"]:
             if activity_state["last_pause_start"] is None:
                 activity_state["last_pause_start"] = activity_state["last_input_time"]
-                print(f"⏸️ Pause started at {time.ctime(activity_state['last_pause_start'])}")
+                print(f"Pause started at {time.ctime(activity_state['last_pause_start'])}")
         else:
             # End pause when activity resumes
             if activity_state["last_pause_start"] is not None:
@@ -276,7 +283,7 @@ def monitor_active_window():
                     "end": time.ctime(pause_end),
                     "duration": int(pause_duration)
                 })
-                print(f"▶️ Pause ended. Duration: {int(pause_duration)} seconds")
+                print(f"Pause ended. Duration: {int(pause_duration)} seconds")
                 activity_state["last_pause_start"] = None
 
         # Window switching logic
@@ -400,7 +407,7 @@ def report_loop_json():
     chunk_distraction_hits = 0   
     chunk_samples = 0            
 
-    while True:
+    while not STOP_REQUESTED:
         time.sleep(1)
         now = time.time()
         
@@ -543,7 +550,7 @@ def report_loop_json():
                 print(json.dumps(leo_packet), flush=True)
                 
             except Exception as e:
-                print(f"⚠️ LLM Error: {e}", file=sys.stderr)
+                print(f"LLM Error: {e}", file=sys.stderr)
 
             # Reset
             chunk_windows_list = []
@@ -575,7 +582,15 @@ def _calculate_grade(score):
         return "C"
     else:
         return "D"
-    
+
+def listen_for_commands():
+        global STOP_REQUESTED
+        while True:
+            cmd = sys.stdin.readline().strip()
+            if cmd == "STOP":
+                STOP_REQUESTED = True
+                break
+
 if __name__ == "__main__":
     # 1. ACQUISIZIONE CONTESTO DA ARGOMENTI (passati da Flutter)
     if len(sys.argv) > 1:
@@ -583,7 +598,7 @@ if __name__ == "__main__":
     else:
         user_context = "General Work Session"
 
-    # --- 🌟 MAGIC FIX: CONTEXT OVERRIDE 🌟 ---
+    # --- MAGIC FIX: CONTEXT OVERRIDE ---
     # Rende Leonardo intelligente: se dici che usi WhatsApp, lui non si arrabbia.
     print(f"DEBUG: Analyzing context for exceptions: '{user_context}'")
     context_lower = user_context.lower()
@@ -592,14 +607,14 @@ if __name__ == "__main__":
     # Usiamo list(...) per creare una copia e poter modificare l'originale mentre iteriamo
     for app in list(DISTRACTING_APPS): 
         if app.lower() in context_lower:
-            print(f"✨ Context Override: {app} detected in goal. Moving to PRODUCTIVE.")
+            print(f"Context Override: {app} detected in goal. Moving to PRODUCTIVE.")
             DISTRACTING_APPS.remove(app)
             PRODUCTIVE_APPS.append(app)
 
     # 2. Controllo Browser (es. YouTube, Facebook)
     for site in list(BROWSER_DISTRACTIONS):
         if site.lower() in context_lower:
-            print(f"✨ Context Override: {site} allowed in browser.")
+            print(f"Context Override: {site} allowed in browser.")
             BROWSER_DISTRACTIONS.remove(site)
     # -------------------------------------------------------
 
@@ -632,10 +647,8 @@ if __name__ == "__main__":
     except Exception as e:
         log_debug({"error_advice": str(e)})
     # -------------------------------------------------------
-    try:
-        sys.stdin.readline()
-    except: 
-        pass
+    
+    threading.Thread(target=listen_for_commands, daemon=True).start()
 
     # Avvia monitoraggio
     activity_state["session_start"] = time.time()
@@ -647,54 +660,44 @@ if __name__ == "__main__":
     mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
     mouse_listener.start()
 
-    try:
-        # Usiamo il loop JSON
-        report_loop_json()
+    # Usiamo il loop JSON
+    report_loop_json()
 
-    except KeyboardInterrupt:
-        # Quando Flutter chiude il processo o invia segnale
-        activity_state["session_end"] = time.time()
-        
-        # Comunica a Flutter che stiamo pensando
-        print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
-        
-        # Genering report LLM
-        # summary = summarize_activity_with_llm(activity_state)
-        # now generates using the final json instead of the logs like before
-        final_memory = activity_state.get("memory_context", {})
+    # Session ended cleanly
+    activity_state["session_end"] = time.time()
 
-        session_duration = activity_state["session_end"] - activity_state["session_start"]
-        sorted_apps = sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
+    print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
 
-        stats_package = {
-            "duration_seconds": int(session_duration),
-            "total_switches": activity_state["window_switches"],
-            "focus_score": final_memory.get("focus_score", 50),
-            "top_apps": [{"name": k, "seconds": int(v)} for k, v in sorted_apps], # Formattiamo bene per JSON
-            "total_distraction_time": activity_state.get("total_distracted_time", 0),
-            "pause_count": len(activity_state.get("pause_periods", [])),
-            "key_presses": activity_state.get("key_presses", 0),
-            "mouse_clicks": activity_state.get("mouse_clicks", 0)
-        }
+    final_memory = activity_state.get("memory_context", {})
 
-        try:
-            # generating the final json
-            #report_markdown = generate_final_report_from_memory(final_memory)
-            report_markdown = generate_final_report_from_memory(
-                final_memory, 
-                activity_state["user_context"],
-                stats_package
-            )
-            # Invia il report finale
-            final_packet = {
-                "type": "report",
-                "content": report_markdown,
-                "stats": stats_package,
-                "final_score": final_memory.get("focus_score", 50),
-                "grade": _calculate_grade(final_memory.get("focus_score", 50)),
-                "total_iterations": len(final_memory.get('history', []))
-            }
-            print(json.dumps(final_packet), flush=True)
+    session_duration = activity_state["session_end"] - activity_state["session_start"]
+    sorted_apps = sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
 
-        except Exception as e:
-            print(f"⚠️ Error generating report: {e}", file=sys.stderr)
+    stats_package = {
+        "duration_seconds": int(session_duration),
+        "total_switches": activity_state["window_switches"],
+        "focus_score": final_memory.get("focus_score", 50),
+        "top_apps": [{"name": k, "seconds": int(v)} for k, v in sorted_apps],
+        "total_distraction_time": activity_state.get("total_distracted_time", 0),
+        "pause_count": len(activity_state.get("pause_periods", [])),
+        "key_presses": activity_state.get("key_presses", 0),
+        "mouse_clicks": activity_state.get("mouse_clicks", 0)
+    }
+
+    report_markdown = generate_final_report_from_memory(
+        final_memory,
+        activity_state["user_context"],
+        stats_package
+    )
+
+    final_packet = {
+        "type": "report",
+        "content": report_markdown,
+        "stats": stats_package,
+        "final_score": final_memory.get("focus_score", 50),
+        "grade": _calculate_grade(final_memory.get("focus_score", 50)),
+        "total_iterations": len(final_memory.get('history', []))
+    }
+
+    print(json.dumps(final_packet), flush=True)
+    sys.exit(0)

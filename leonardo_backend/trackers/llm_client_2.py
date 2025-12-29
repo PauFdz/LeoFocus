@@ -152,7 +152,7 @@ def create_json_memory(current_log, previous_context, user_goal):
     
     # --- DEBUG: STAMPA IL PROMPT REALE ---
     print("\n" + "="*50, file=sys.stderr)
-    print(f"🛑 [DEBUG LLM] DISTRAZIONE CALCOLATA: {global_distraction}%", file=sys.stderr)
+    print(f"[DEBUG LLM] DISTRAZIONE CALCOLATA: {global_distraction}%", file=sys.stderr)
     print("="*50 + "\n", file=sys.stderr)
     # -------------------------------------
 
@@ -190,7 +190,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
         try:
             final_context = json.loads(final_context)
         except Exception as e:
-            print(f"⚠️ Errore parsing JSON context: {e}")
+            print(f"Errore parsing JSON context: {e}")
             final_context = {}
     
     if final_context is None:
@@ -455,10 +455,10 @@ Current score: {final_focus_score}/100, Distractions: {distractions_count}
     # 6. CHIAMATA A LLM
     try:
         report = ask_llm(prompt, max_tokens=900, temperature=0.3, provider="groq")
-        print("✅ Report generato con successo")
+        print("Report generato con successo")
         return report
     except Exception as e:
-        print(f"❌ Errore chiamata LLM: {e}")
+        print(f"Errore chiamata LLM: {e}")
         
         # Fallback report con DATI REALI
         return f"""

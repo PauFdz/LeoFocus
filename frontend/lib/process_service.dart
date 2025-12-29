@@ -309,7 +309,7 @@ class LeonardoService extends ChangeNotifier {
   // ============================================
   Future<void> stopSession() async {
     print("🛑 Invio segnale di stop a Python...");
-    _process?.kill(ProcessSignal.sigint);
+    _process?.stdin.writeln('STOP');
     
     // Aspetta un po' per permettere a Python di generare il report
     await Future.delayed(const Duration(milliseconds: 500));
