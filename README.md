@@ -254,11 +254,10 @@ Human–Computer Interaction · Systems
 - 🧑‍💻 GitHub: https://github.com/your-github-username
 
 **David Ravelli**  
-MSc Student @ Politecnico di Milano  
-Artificial Intelligence · Human–Computer Interaction · Systems
+Data Science @ EIT Digital Master School (POLIMI, AALTO) 
 
-- 💼 LinkedIn: https://www.linkedin.com/in/your-linkedin-username  
-- 🧑‍💻 GitHub: https://github.com/your-github-username
+- 💼 LinkedIn: https://www.linkedin.com/in/david-ravelli-2900a6252/ 
+- 🧑‍💻 GitHub: https://github.com/dvd32
 
 ---
 
