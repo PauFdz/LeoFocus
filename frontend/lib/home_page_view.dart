@@ -7,6 +7,7 @@ import 'report_view.dart';
 import 'running_view.dart';
 import 'theme.dart';
 import 'widgets/glass_card_widget.dart';
+import 'dart:ui';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
