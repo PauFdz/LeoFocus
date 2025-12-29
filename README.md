@@ -267,5 +267,5 @@ MIT License
 
 ---
 
-> *“Virtù is not perfection — it is persistent refinement.”*
+> *“Details make perfection, and perfection is not a detail.”*
 > — Leonardo da Vinci
