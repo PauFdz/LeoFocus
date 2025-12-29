@@ -1,16 +1,19 @@
+import json
 import time
 import threading
 import sys
 from pynput import keyboard, mouse
 import subprocess
 import os
+from local_summarizer import summarize_activity_with_llm, get_start_session_advice
+from llm_client_2 import create_json_memory, generate_final_report_from_memory
 
 # -----------------------------
 # CONFIGURAZIONE APPLICAZIONI
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
-PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron"]
-BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok"]
+PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop", "Notes", "Note", "Obsidian", "Notion", "Sublime Text", "IntelliJ IDEA", "Xcode", "Android Studio"]
+BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok", "Reddit", "Twitter", "Prime Video", "Twitch", "Spotify"]
 
 # SYSTEM PROCESSES TO IGNORE (Windows)
 SYSTEM_PROCESSES = [
@@ -83,6 +86,7 @@ activity_state = {
     "productive_switches": 0,
     "document_names": {},
     "all_open_windows": [],
+    "total_distracted_time" : 0
 }
 
 # -----------------------------
@@ -114,6 +118,12 @@ def is_system_process(window_name):
         return True
     
     return False
+
+def log_debug(data):
+    #for debugging
+    # Scrive nella stessa cartella dello script
+    with open("debug_leonardo.jsonl", "a", encoding="utf-8") as f:
+        f.write(json.dumps(data, ensure_ascii=False) + "\n")
 
 # -----------------------------
 # ACTIVE WINDOW DETECTION
@@ -204,6 +214,8 @@ def get_document_name(window_name):
 
 
 def is_browser_distraction(window_name):
+    if window_name is None or not isinstance(window_name, str):     # returns false when it cant read the page title instead of creating an error
+        return False                                                # may happen when switching windows or if the window has no title
     doc_name = get_document_name(window_name)
     if any(browser in window_name for browser in ["Chrome", "Safari", "Firefox", "Edge"]):
         for keyword in BROWSER_DISTRACTIONS:
@@ -219,7 +231,7 @@ def get_all_windows():
     try:
         if sys.platform == "darwin":
             script = 'tell application "System Events" to get name of every process whose background only is false'
-            output = subprocess.check_output(['osascript', '-e', script]).decode('utf-8').strip()
+            output = subprocess.check_output(['osascript', '-e', script], stderr=subprocess.DEVNULL).decode('utf-8').strip()
             windows = [a.strip() for a in output.split(",") if a.strip()]
             # Filter out system processes
             windows = [w for w in windows if not is_system_process(w)]
@@ -369,90 +381,320 @@ def categorize_app(app_name, doc_name=None):
 # -----------------------------
 # REPORT LOOP
 # -----------------------------
-def report_loop():
-    while True:
-        time.sleep(5)
-        now = time.time()
-        activity_state["session_end"] = now
+def report_loop_json():
+    # Stato Iniziale della Memoria
+    memory_context = {
+        "focus_score": 100,
+        "status": "Starting",
+        "user_role": activity_state.get("user_context", "General Creator"),
+        "summary_so_far": "Session started.",
+        "leonardo_comment": "I am observing.",
+        "history": []
+    }
+    
+    activity_state["memory_context"] = memory_context
+    last_chunk_time = time.time()
+    
+    # Accumulatori
+    chunk_windows_list = []      
+    chunk_distraction_hits = 0   
+    chunk_samples = 0            
 
-        current_window = activity_state["active_window"]
-        if current_window:
+    while True:
+        time.sleep(1)
+        now = time.time()
+        
+        app_name = activity_state["active_window"]
+        doc_name = ""
+        
+        if app_name:
+            doc_name = get_document_name(app_name)
             elapsed = now - activity_state["last_switch_time"]
-            activity_state["window_times"][current_window] = activity_state["window_times"].get(current_window, 0) + elapsed
+            activity_state["window_times"][app_name] = activity_state["window_times"].get(app_name, 0) + elapsed
             activity_state["last_switch_time"] = now
 
-        inactive_time = now - activity_state["last_input_time"]
-        is_inactive = inactive_time > activity_state["inactive_threshold"]
+        # --- 1. RILEVAMENTO DISTRAZIONI PIÙ INTELLIGENTE ---
+        is_distracted_now = False
+        full_window_name = app_name if app_name else "Idle"
+        
+        if app_name:
+            if doc_name:
+                full_window_name = f"{app_name} ({doc_name})"
+            
+            # FIX: Controllo se una delle app vietate è CONTENUTA nel nome (non match esatto)
+            # Es. "WhatsApp" in "(1) WhatsApp" -> True
+            is_distracted_by_app = any(d_app.lower() in app_name.lower() for d_app in DISTRACTING_APPS)
+            
+            if is_distracted_by_app:
+                is_distracted_now = True
+            
+            # Check Browser
+            elif app_name in ["Google Chrome", "Safari", "Firefox", "Microsoft Edge", "Arc"]:
+                for distractor in BROWSER_DISTRACTIONS:
+                    if distractor.lower() in doc_name.lower():
+                        is_distracted_now = True
+                        break
+        
+        # Accumula dati
+        chunk_samples += 1
+        if is_distracted_now:
+            chunk_distraction_hits += 1
+            activity_state["total_distracted_time"] += 1
+        
+        if app_name:
+            chunk_windows_list.append(full_window_name)
 
-        print("\n--- ACTIVITY REPORT ---")
-        print(f"Active window       : {current_window}")
-        print(f"Window switches     : {activity_state['window_switches']}")
-        print(f"Key presses         : {activity_state['key_presses']}")
-        print(f"Mouse moves         : {activity_state['mouse_moves']}")
-        print(f"Mouse clicks        : {activity_state['mouse_clicks']}")
-        print(f"Scroll events       : {activity_state['scroll_events']}")
-        print(f"All open windows    : {activity_state['all_open_windows']}")
-        print(f"Time per window     :")
+        # Invia dati UI a Flutter
+        data_packet = {
+            "type": "update",
+            "active_window": full_window_name,
+            "total_time": int(now - activity_state["session_start"]),
+            "switches": activity_state['window_switches'],
+            "keys": activity_state['key_presses'],
+            "mouse": activity_state['mouse_moves'],
+            "is_inactive": (now - activity_state["last_input_time"]) > activity_state["inactive_threshold"],
+            "top_apps": sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
+        }
+        print(json.dumps(data_packet), flush=True)
 
-        for w, t in activity_state["window_times"].items():
-            bg_time = activity_state["window_background_time"].get(w, 0)
-            reading_time = activity_state["reading_time"].get(w, 0)
-            doc_name = get_document_name(w)
-            category = categorize_app(w, doc_name=doc_name)
-            opens = activity_state["window_open_count"].get(w, 0)
-            clicks = activity_state["click_per_app"].get(w, 0)
-            print(f"  {w}: {int(t)} sec (fg), {int(bg_time)} sec (bg), reading {int(reading_time)} sec, clicks {clicks}, opened {opens} times, category: {category}, document/tab: {doc_name}")
+        # === CHECK EVERY 30 SECONDS ===
+        if now - last_chunk_time >= 30:
+            
+            # Calcolo Percentuali Matematiche
+            recent_distraction = 0
+            if chunk_samples > 0:
+                recent_distraction = int((chunk_distraction_hits / chunk_samples) * 100)
 
-        print(f"Inactive?           : {is_inactive} ({int(inactive_time)} sec)")
-        print(f"Session start       : {time.ctime(activity_state['session_start'])}")
-        print(f"Session end         : {time.ctime(activity_state['session_end'])}")
-        print(f"Pause periods       : {activity_state['pause_periods']}")
-        print(f"Switches productive/distracting : {activity_state['productive_switches']}")
-        print("Hourly activity distribution:")
-        for h in sorted(activity_state["hourly_activity"]):
-            print(f"  {h}:00 - {int(activity_state['hourly_activity'][h])} sec")
+            session_duration = now - activity_state["session_start"]
+            global_distraction = 0
+            if session_duration > 0:
+                global_distraction = int((activity_state["total_distracted_time"] / session_duration) * 100)
+            
+            unique_windows = list(set(chunk_windows_list))
+            
+            chunk_data = {
+                "windows": unique_windows,
+                "duration": 30,
+                "recent_distraction": recent_distraction, 
+                "global_distraction": global_distraction
+            }
+            
+            try:
+                # Chiediamo all'LLM di valutare
+                new_memory = create_json_memory(chunk_data, memory_context, activity_state["user_context"])
+                
+                # --- 2. IL POLIZIOTTO CATTIVO (MATH OVERRIDE) ---
+                # Se l'LLM è troppo gentile, correggiamo noi il voto.
+                # Regola: Il focus score non può essere superiore a (100 - % distrazione recente)
+                max_allowed_score = 100 - recent_distraction
+                
+                # Bonus di tolleranza: diamo +10 punti extra se non è 100% distrazione, ma non oltre 100
+                if recent_distraction < 100:
+                    max_allowed_score += 10 
+                
+                llm_score = new_memory.get('focus_score', 50)
+                
+                # Applichiamo la correzione se l'LLM ha dato voti troppo alti
+                if llm_score > max_allowed_score:
+                    # Se l'LLM dice 90 ma tu eri su WhatsApp (90% distr), max_allowed è 20.
+                    # Riscriviamo lo score brutale.
+                    new_memory['focus_score'] = max_allowed_score
+                    new_memory['leonardo_comment'] = "I see your distraction clearly. Do not deceive yourself." # Forziamo un commento severo se serve
+                
+                # -----------------------------------------------
 
-        print("Recent window sequence (last 10):")
-        print(f"  {activity_state['switch_sequence'][-10:]}")
-        print("Key combinations:")
-        print(f"  {activity_state['key_combinations']}")
-        print("Window log (last 10):")
-        for log in activity_state["window_log"][-10:]:
-            print(f"  {log}")
-        print("------------------------\n")
+                if 'history' not in new_memory:
+                    new_memory['history'] = memory_context.get('history', [])
+                
+                history_entry = {
+                    "iteration": len(new_memory['history']) + 1,
+                    "timestamp": now,
+                    "score": new_memory.get('focus_score', 50),
+                    "windows": unique_windows,
+                    "recent_distraction": recent_distraction,
+                    "global_distraction": global_distraction,
+                    "duration": 30
+                }
+                new_memory['history'].append(history_entry)
+                
+                if len(new_memory['history']) > 50:
+                    new_memory['history'] = new_memory['history'][-50:]
+                
+                memory_context = new_memory
+                activity_state["memory_context"] = memory_context 
+                
+                # Determina emozione basata sui DATI REALI, non sull'LLM
+                current_emotion = 'neutral'
+                current_score = memory_context.get('focus_score', 100)
+                
+                if recent_distraction > 50:
+                    current_emotion = 'angry'
+                elif current_score < 60:
+                    current_emotion = 'worried'
+                elif current_score > 85:
+                    current_emotion = 'happy'
 
-        # reset contatori temporanei
-        activity_state["key_presses"] = 0
-        activity_state["mouse_moves"] = 0
-        activity_state["mouse_clicks"] = 0
-        activity_state["window_switches"] = 0
-        activity_state["scroll_events"] = 0
-        activity_state["key_combinations"] = {}
+                leo_packet = {
+                    "type": "leo_comment",
+                    "content": memory_context.get('leonardo_comment', 'Observing...'),
+                    "focus_score": current_score,
+                    "emotion": current_emotion # Usiamo l'emozione calcolata da Python
+                }
+                print(json.dumps(leo_packet), flush=True)
+                
+            except Exception as e:
+                print(f"⚠️ LLM Error: {e}", file=sys.stderr)
 
+            # Reset
+            chunk_windows_list = []
+            chunk_distraction_hits = 0
+            chunk_samples = 0
+            last_chunk_time = now
+            
 # -----------------------------
 # MAIN
 # -----------------------------
+
+def _calculate_grade(score):
+    """Calculate letter grade from score"""
+    if score >= 90:
+        return "A+"
+    elif score >= 85:
+        return "A"
+    elif score >= 80:
+        return "A-"
+    elif score >= 75:
+        return "B+"
+    elif score >= 70:
+        return "B"
+    elif score >= 65:
+        return "B-"
+    elif score >= 60:
+        return "C+"
+    elif score >= 50:
+        return "C"
+    else:
+        return "D"
+    
 if __name__ == "__main__":
-    print("🔍 Starting enhanced activity monitor (Windows + macOS)...")
+    # 1. ACQUISIZIONE CONTESTO DA ARGOMENTI (passati da Flutter)
+    if len(sys.argv) > 1:
+        user_context = sys.argv[1]
+    else:
+        user_context = "General Work Session"
 
+    # --- 🌟 MAGIC FIX: CONTEXT OVERRIDE 🌟 ---
+    # Rende Leonardo intelligente: se dici che usi WhatsApp, lui non si arrabbia.
+    print(f"DEBUG: Analyzing context for exceptions: '{user_context}'")
+    context_lower = user_context.lower()
+
+    # 1. Controllo App Standalone (es. WhatsApp, Spotify)
+    # Usiamo list(...) per creare una copia e poter modificare l'originale mentre iteriamo
+    for app in list(DISTRACTING_APPS): 
+        if app.lower() in context_lower:
+            print(f"✨ Context Override: {app} detected in goal. Moving to PRODUCTIVE.")
+            DISTRACTING_APPS.remove(app)
+            PRODUCTIVE_APPS.append(app)
+
+    # 2. Controllo Browser (es. YouTube, Facebook)
+    for site in list(BROWSER_DISTRACTIONS):
+        if site.lower() in context_lower:
+            print(f"✨ Context Override: {site} allowed in browser.")
+            BROWSER_DISTRACTIONS.remove(site)
+    # -------------------------------------------------------
+
+    try:
+        # --- ADVICE PRE-SESSION ---
+        # asking llm for advice
+        startup_advice = get_start_session_advice(user_context)
+
+        # sending to flutter
+        print(json.dumps({
+            "type": "leo_comment",
+            "content": startup_advice,
+            #"emotion": "interested"
+        }), flush=True)
+
+    except Exception as e:
+        sys.stderr.write(f"Error getting startup advice: {e}\n")
+            
+    activity_state["user_context"] = user_context
+
+    # --- MODIFICA CHIAVE: Generazione Consigli Iniziali ---
+    # Prima di partire, chiediamo a Leonardo il consiglio e lo mandiamo a Flutter
+    try:
+        # Nota: Flutter deve gestire un pacchetto con type: "initial_advice"
+        advice = get_start_session_advice(user_context)
+        print(json.dumps({
+            "type": "initial_advice",
+            "content": advice
+        }), flush=True)
+    except Exception as e:
+        log_debug({"error_advice": str(e)})
+    # -------------------------------------------------------
+    try:
+        sys.stdin.readline()
+    except: 
+        pass
+
+    # Avvia monitoraggio
+    activity_state["session_start"] = time.time()
+    
+    # Thread separati per input
     threading.Thread(target=monitor_active_window, daemon=True).start()
-
     keyboard_listener = keyboard.Listener(on_press=on_key_press)
     keyboard_listener.start()
-
     mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
     mouse_listener.start()
 
     try:
-        report_loop()
+        # Usiamo il loop JSON
+        report_loop_json()
 
     except KeyboardInterrupt:
-        print("\n🛑 User stopped monitoring. Generating summary...")
-
-        from local_summarizer import summarize_activity_with_llm
-
+        # Quando Flutter chiude il processo o invia segnale
         activity_state["session_end"] = time.time()
+        
+        # Comunica a Flutter che stiamo pensando
+        print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
+        
+        # Genering report LLM
+        # summary = summarize_activity_with_llm(activity_state)
+        # now generates using the final json instead of the logs like before
+        final_memory = activity_state.get("memory_context", {})
 
-        summary = summarize_activity_with_llm(activity_state)
-        print("\n--- SUMMARY ---\n")
-        print(summary)
+        session_duration = activity_state["session_end"] - activity_state["session_start"]
+        sorted_apps = sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
+
+        stats_package = {
+            "duration_seconds": int(session_duration),
+            "total_switches": activity_state["window_switches"],
+            "focus_score": final_memory.get("focus_score", 50),
+            "top_apps": [{"name": k, "seconds": int(v)} for k, v in sorted_apps], # Formattiamo bene per JSON
+            "total_distraction_time": activity_state.get("total_distracted_time", 0),
+            "pause_count": len(activity_state.get("pause_periods", [])),
+            "key_presses": activity_state.get("key_presses", 0),
+            "mouse_clicks": activity_state.get("mouse_clicks", 0)
+        }
+
+        try:
+            # generating the final json
+            #report_markdown = generate_final_report_from_memory(final_memory)
+            report_markdown = generate_final_report_from_memory(
+                final_memory, 
+                activity_state["user_context"],
+                stats_package
+            )
+            # Invia il report finale
+            final_packet = {
+                "type": "report",
+                "content": report_markdown,
+                "stats": stats_package,
+                "final_score": final_memory.get("focus_score", 50),
+                "grade": _calculate_grade(final_memory.get("focus_score", 50)),
+                "total_iterations": len(final_memory.get('history', []))
+            }
+            print(json.dumps(final_packet), flush=True)
+
+        except Exception as e:
+            print(f"⚠️ Error generating report: {e}", file=sys.stderr)
