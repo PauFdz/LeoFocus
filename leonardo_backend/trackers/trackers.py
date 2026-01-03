@@ -1,10 +1,13 @@
 import json
 import time
 import threading
+import os
 import sys
 from pynput import keyboard, mouse
 import subprocess
-import os
+from collections import Counter
+import tkinter as tk
+from tkinter import messagebox
 from local_summarizer import summarize_activity_with_llm, get_start_session_advice
 from llm_client_2 import create_json_memory, generate_final_report_from_memory
 
@@ -40,7 +43,10 @@ SYSTEM_PROCESSES = [
     "Configuración",
     "SystemSettings",
     "Windows Security",
-    "Seguridad de Windows"
+    "Seguridad de Windows",
+    "Conmutación de tareas",   # <--- ADDED (Spanish)
+    "Task Switching",          # <--- ADDED (English)
+    "Task View"                # <--- ADDED (Windows 10/11)
 ]
 
 # SYSTEM PROCESSES TO IGNORE (macOS)
@@ -385,6 +391,132 @@ def categorize_app(app_name, doc_name=None):
 
     return "other"
 
+
+# ============================================
+# CUSTOM DA VINCI POPUP (FIXED)
+# ============================================
+last_scold_time = 0
+
+def show_da_vinci_scolding(distraction_name):
+    """Shows a custom, styled popup with the angry avatar - FIXED LAYOUT"""
+    
+    # 1. Clean up app name
+    clean_name = distraction_name
+    for app in DISTRACTING_APPS + BROWSER_DISTRACTIONS:
+        if app.lower() in distraction_name.lower():
+            clean_name = app
+            break
+            
+    def _show():
+        try:
+            # Create main window
+            root = tk.Tk()
+            root.title("Leonardo is Displeased")
+            
+            # --- CONFIGURATION ---
+            bg_color = "#FAF8F5"       # Warm off-white
+            text_color = "#1A1614"     # Ink Black
+            accent_color = "#B8442C"   # Terracotta Red (Border)
+            
+            # Window Size
+            w, h = 420, 520 
+            
+            # Center on screen logic
+            ws = root.winfo_screenwidth()
+            hs = root.winfo_screenheight()
+            x = (ws/2) - (w/2)
+            y = (hs/2) - (h/2)
+            
+            root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+            root.configure(bg=accent_color)
+            root.attributes("-topmost", True)
+            root.overrideredirect(True) 
+            
+            # --- SAFETY CLOSE FUNCTIONS ---
+            def close_popup(event=None):
+                root.destroy()
+            
+            # Bind ESC key and CLICK ANYWHERE to close (Safety net!)
+            root.bind("<Escape>", close_popup)
+            root.bind("<Button-1>", close_popup) 
+            
+            # --- INNER CONTAINER ---
+            inner_frame = tk.Frame(root, bg=bg_color)
+            # pack_propagate(False) ensures the frame stays the size we want
+            # and doesn't explode if the image is too big
+            inner_frame.pack_propagate(False) 
+            inner_frame.pack(expand=True, fill="both", padx=5, pady=5)
+            
+            # Allow clicking the inner frame to close too
+            inner_frame.bind("<Button-1>", close_popup)
+
+            # --- 1. THE TITLE ---
+            title_font = ("Times New Roman", 22, "bold italic")
+            title_lbl = tk.Label(inner_frame, 
+                     text="Che disastro!", 
+                     font=title_font, 
+                     bg=bg_color, 
+                     fg=accent_color)
+            title_lbl.pack(pady=(20, 10))
+            title_lbl.bind("<Button-1>", close_popup)
+            
+            # --- 2. THE IMAGE (With Auto-Resize) ---
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            img_path = os.path.join(script_dir, "angry.png")
+            
+            try:
+                photo = tk.PhotoImage(file=img_path)
+                
+                # LOOP TO SHRINK IMAGE UNTIL IT FITS
+                # Keep halving the size until it is smaller than 220px width/height
+                while photo.width() > 220 or photo.height() > 220:
+                    photo = photo.subsample(2, 2)
+                    
+                img_label = tk.Label(inner_frame, image=photo, bg=bg_color)
+                img_label.image = photo 
+                img_label.pack(pady=5)
+                img_label.bind("<Button-1>", close_popup)
+            except Exception as e:
+                print(f"Image error: {e}")
+                tk.Label(inner_frame, text="😡", font=("Arial", 50), bg=bg_color).pack(pady=10)
+
+            # --- 3. THE MESSAGE ---
+            msg_font = ("Garamond", 15) 
+            msg_text = (f"You dare waste your genius on\n{clean_name}?\n\n"
+                        f"I did not paint the Mona Lisa\nwhile distracted by such nonsense.\n\n"
+                        f"Return to your craft immediately.")
+            
+            msg_lbl = tk.Label(inner_frame, 
+                     text=msg_text, 
+                     font=msg_font, 
+                     bg=bg_color, 
+                     fg=text_color,
+                     justify="center")
+            msg_lbl.pack(pady=15, padx=10)
+            msg_lbl.bind("<Button-1>", close_popup)
+
+            # --- 4. THE BUTTON ---
+            btn_font = ("Helvetica", 11, "bold")
+            btn = tk.Button(inner_frame, 
+                            text="I SHALL FOCUS NOW", 
+                            command=close_popup,
+                            bg=text_color, 
+                            fg="white", 
+                            font=btn_font,
+                            relief="flat",
+                            padx=20,
+                            pady=10,
+                            cursor="hand2")
+            btn.pack(side="bottom", pady=25)
+            
+            root.mainloop()
+            
+        except Exception as e:
+            print(f"Error showing popup: {e}")
+
+    threading.Thread(target=_show, daemon=True).start()
+
+
 # -----------------------------
 # REPORT LOOP
 # -----------------------------
@@ -531,11 +663,40 @@ def report_loop_json():
                 activity_state["memory_context"] = memory_context 
                 
                 # Determina emozione basata sui DATI REALI, non sull'LLM
+                # Determina emozione basata sui DATI REALI, non sull'LLM
                 current_emotion = 'neutral'
                 current_score = memory_context.get('focus_score', 100)
                 
+                global last_scold_time # Access the global timer
+                
                 if recent_distraction > 50:
                     current_emotion = 'angry'
+                    
+                    # --- SMARTER POPUP TRIGGER ---
+                    if (now - last_scold_time) > 60:
+                        
+                        # 1. Count which windows were used in this "angry" chunk
+                        # chunk_windows_list contains the active window for every second of the last 30s
+                        window_counts = Counter(chunk_windows_list)
+                        
+                        # 2. Sort them: most frequent first
+                        most_common_windows = window_counts.most_common()
+                        
+                        # 3. Pick the top one that isn't our own app
+                        blame_app = "Distraction" # Fallback name
+                        
+                        for win_name, count in most_common_windows:
+                            # IGNORE: leonardoapp, python, or empty names
+                            lower_name = win_name.lower()
+                            if "leonardoapp" not in lower_name and "python" not in lower_name and "debug" not in lower_name:
+                                blame_app = win_name
+                                break
+                        
+                        # 4. Show the popup blaming the real culprit
+                        show_da_vinci_scolding(blame_app)
+                        last_scold_time = now
+                    # -------------------------------
+
                 elif current_score < 60:
                     current_emotion = 'worried'
                 elif current_score > 85:
