@@ -247,11 +247,10 @@ Artificial Intelligence · Human–Computer Interaction · Systems
 - 🧑‍💻 GitHub: https://github.com/PauFdz
 
 **Filippo Galletta**  
-MSc Student @ Politecnico di Milano  
-Human–Computer Interaction · Systems
+MSc Student @ EIT Digital Master School (POLIMI, KTH) 
 
-- 💼 LinkedIn: https://www.linkedin.com/in/filippo-galletta/
-- 🧑‍💻 GitHub: https://github.com/your-github-username
+- 💼 LinkedIn: [linkedin.com/in/filippo-galletta/](https://www.linkedin.com/in/filippo-galletta/)
+- 🧑‍💻 GitHub: [github.com/filippogalletta](https://github.com/filippogalletta)
 
 **David Ravelli**  
 Data Science @ EIT Digital Master School (POLIMI, AALTO) 
