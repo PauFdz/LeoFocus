@@ -18,7 +18,7 @@ if sys.platform.startswith("win"):
 
 
 # -----------------------------
-# CONFIGURAZIONE APPLICAZIONI
+# Apllication Configuration
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
 PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop", "Notes", "Note", "Obsidian", "Notion", "Sublime Text", "IntelliJ IDEA", "Xcode", "Android Studio"]
@@ -44,9 +44,9 @@ SYSTEM_PROCESSES = [
     "SystemSettings",
     "Windows Security",
     "Seguridad de Windows",
-    "Conmutación de tareas",   # <--- ADDED (Spanish)
-    "Task Switching",          # <--- ADDED (English)
-    "Task View"                # <--- ADDED (Windows 10/11)
+    "Conmutación de tareas",   # (Spanish)
+    "Task Switching",          # (English)
+    "Task View"                # (Windows 10/11)
 ]
 
 # SYSTEM PROCESSES TO IGNORE (macOS)
@@ -377,7 +377,7 @@ def on_scroll(x, y, dx, dy):
     activity_state["last_input_time"] = time.time()
 
 # -----------------------------
-# CATEGORIZZA APP
+# CATEGORIZE APP
 # -----------------------------
 def categorize_app(app_name, doc_name=None):
     for category, apps in APP_CATEGORIES.items():
@@ -392,9 +392,9 @@ def categorize_app(app_name, doc_name=None):
     return "other"
 
 
-# ============================================
-# CUSTOM DA VINCI POPUP (FIXED)
-# ============================================
+# ========================================================================================
+# CUSTOM DA VINCI POPUP (For getting the user to know whenever is getting distracted)
+# ========================================================================================
 last_scold_time = 0
 
 def show_da_vinci_scolding(distraction_name):
@@ -413,7 +413,7 @@ def show_da_vinci_scolding(distraction_name):
             root = tk.Tk()
             root.title("Leonardo is Displeased")
             
-            # --- CONFIGURATION ---
+            # CONFIGURATION
             bg_color = "#FAF8F5"       # Warm off-white
             text_color = "#1A1614"     # Ink Black
             accent_color = "#B8442C"   # Terracotta Red (Border)
@@ -432,7 +432,7 @@ def show_da_vinci_scolding(distraction_name):
             root.attributes("-topmost", True)
             root.overrideredirect(True) 
             
-            # --- SAFETY CLOSE FUNCTIONS ---
+            # SAFETY CLOSE FUNCTIONS
             def close_popup(event=None):
                 root.destroy()
             
@@ -440,7 +440,7 @@ def show_da_vinci_scolding(distraction_name):
             root.bind("<Escape>", close_popup)
             root.bind("<Button-1>", close_popup) 
             
-            # --- INNER CONTAINER ---
+            # INNER CONTAINER
             inner_frame = tk.Frame(root, bg=bg_color)
             # pack_propagate(False) ensures the frame stays the size we want
             # and doesn't explode if the image is too big
@@ -450,7 +450,7 @@ def show_da_vinci_scolding(distraction_name):
             # Allow clicking the inner frame to close too
             inner_frame.bind("<Button-1>", close_popup)
 
-            # --- 1. THE TITLE ---
+            # 1. THE TITLE
             title_font = ("Times New Roman", 22, "bold italic")
             title_lbl = tk.Label(inner_frame, 
                      text="Che disastro!", 
@@ -460,7 +460,7 @@ def show_da_vinci_scolding(distraction_name):
             title_lbl.pack(pady=(20, 10))
             title_lbl.bind("<Button-1>", close_popup)
             
-            # --- 2. THE IMAGE (With Auto-Resize) ---
+            # 2. THE IMAGE (With Auto-Resize)
             script_dir = os.path.dirname(os.path.abspath(__file__))
             img_path = os.path.join(script_dir, "angry.png")
             
@@ -480,7 +480,7 @@ def show_da_vinci_scolding(distraction_name):
                 print(f"Image error: {e}")
                 tk.Label(inner_frame, text="😡", font=("Arial", 50), bg=bg_color).pack(pady=10)
 
-            # --- 3. THE MESSAGE ---
+            # 3. THE MESSAGE
             msg_font = ("Garamond", 15) 
             msg_text = (f"You dare waste your genius on\n{clean_name}?\n\n"
                         f"I did not paint the Mona Lisa\nwhile distracted by such nonsense.\n\n"
@@ -495,7 +495,7 @@ def show_da_vinci_scolding(distraction_name):
             msg_lbl.pack(pady=15, padx=10)
             msg_lbl.bind("<Button-1>", close_popup)
 
-            # --- 4. THE BUTTON ---
+            # 4. THE BUTTON
             btn_font = ("Helvetica", 11, "bold")
             btn = tk.Button(inner_frame, 
                             text="I SHALL FOCUS NOW", 
@@ -521,7 +521,7 @@ def show_da_vinci_scolding(distraction_name):
 # REPORT LOOP
 # -----------------------------
 def report_loop_json():
-    # Stato Iniziale della Memoria
+    # Initial State of the memory
     memory_context = {
         "focus_score": 100,
         "status": "Starting",
@@ -534,7 +534,6 @@ def report_loop_json():
     activity_state["memory_context"] = memory_context
     last_chunk_time = time.time()
     
-    # Accumulatori
     chunk_windows_list = []      
     chunk_distraction_hits = 0   
     chunk_samples = 0            
@@ -552,7 +551,7 @@ def report_loop_json():
             activity_state["window_times"][app_name] = activity_state["window_times"].get(app_name, 0) + elapsed
             activity_state["last_switch_time"] = now
 
-        # --- 1. RILEVAMENTO DISTRAZIONI PIÙ INTELLIGENTE ---
+        # 1. RILEVAMENTO DISTRAZIONI PIÙ INTELLIGENTE
         is_distracted_now = False
         full_window_name = app_name if app_name else "Idle"
         
