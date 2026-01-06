@@ -15,7 +15,7 @@ def get_groq_llm():
         raise ImportError("Install: pip install groq")
     
     global _client
-    _client = Groq(api_key="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")
+    _client = Groq(api_key="") # use your desired API key here
     if _client is None:
         api_key = os.getenv("GROQ_API_KEY")
         if not api_key:
