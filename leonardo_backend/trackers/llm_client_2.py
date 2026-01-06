@@ -150,11 +150,10 @@ def create_json_memory(current_log, previous_context, user_goal):
     }}
     """
     
-    # --- DEBUG: STAMPA IL PROMPT REALE ---
+    
     print("\n" + "="*50, file=sys.stderr)
-    print(f"🛑 [DEBUG LLM] DISTRAZIONE CALCOLATA: {global_distraction}%", file=sys.stderr)
+    print(f"[DEBUG LLM] DISTRAZIONE CALCOLATA: {global_distraction}%", file=sys.stderr)
     print("="*50 + "\n", file=sys.stderr)
-    # -------------------------------------
 
     response = ask_llm(prompt, max_tokens=350, provider="groq") 
     
@@ -173,8 +172,6 @@ def create_json_memory(current_log, previous_context, user_goal):
 # Generating the final report using json memory
 # ============================================
 
-# Assicurati che la funzione 'ask_llm' sia definita o importata in questo file prima di questa funzione!
-
 import json
 from llm_client_2 import ask_llm
 
@@ -190,7 +187,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
         try:
             final_context = json.loads(final_context)
         except Exception as e:
-            print(f"⚠️ Errore parsing JSON context: {e}")
+            print(f"Errore parsing JSON context: {e}")
             final_context = {}
     
     if final_context is None:
@@ -199,12 +196,12 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
     if stats_package is None:
         stats_package = {}
     
-    # 2. ESTRAZIONE METRICHE REALI
+    # 2. REAL METRICS EXTRACTION
     
-    # A) FOCUS SCORE (dal JSON finale dell'LLM)
+    # A) FOCUS SCORE
     final_focus_score = final_context.get('focus_score', 50)
     
-    # B) STORIA COMPLETA (se esiste history nel context)
+    # B) COMPLETE HISTORIAL
     history = final_context.get('history', [])
     
     # Calcola score evoluzione
@@ -221,7 +218,6 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
             max_focus = max(scores)
             min_focus = min(scores)
             
-            # Trend: confronta primo 50% vs ultimo 50%
             mid = len(scores) // 2
             if mid > 0:
                 first_half = sum(scores[:mid]) / mid
@@ -232,14 +228,13 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
                 elif second_half < first_half - 10:
                     trend = "declining"
     
-    # C) STATISTICHE SESSIONE (da stats_package)
+    # C) STATISTICS SESSION
     total_minutes = int(stats_package.get('duration_seconds', 0) / 60)
     total_switches = stats_package.get('total_switches', 0)
     top_apps = stats_package.get('top_apps', [])
     
-    # D) DISTRAZIONI (calcolate)
-    # Logica: se focus_score < 60, significa alta distrazione
-    # Contiamo quante iterazioni erano sotto 60
+    # D) CALCULOUS OF DISTRACTION
+    # Logic: if focus_score < 60, means high distraction
     distractions_count = 0
     total_iterations = len(history) if history else 1
     
@@ -250,7 +245,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
                 if score < 60:
                     distractions_count += 1
     else:
-        # Fallback: stima da focus finale
+        # Fallback: estimation of final focus
         if final_focus_score < 60:
             distractions_count = int(total_iterations * 0.5)
         elif final_focus_score < 80:
@@ -259,7 +254,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
             distractions_count = int(total_iterations * 0.1)
     
     # E) DEEP WORK TIME
-    # Stima: periodi con score >= 70 sono deep work
+    # Periods with score >= 70 are deep work
     deep_work_iterations = 0
     if history:
         for entry in history:
@@ -276,7 +271,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
         else:
             deep_work_iterations = int(total_iterations * 0.3)
     
-    # Assumiamo 30s per iterazione (dato che è il chunk)
+    # We assume 30s per interaction
     deep_work_minutes = int((deep_work_iterations * 30) / 60)
     deep_work_percentage = int((deep_work_minutes / total_minutes * 100)) if total_minutes > 0 else 0
     
@@ -291,7 +286,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
     else:
         top_apps_str = "  - No app data available\n"
     
-    # 3. PREPARAZIONE ELEMENTI VISUALI
+    # 3. PREPARATION OF VISUAL ELEMENTS
     avg_focus = max(0, min(100, avg_focus))
     final_focus_score = max(0, min(100, final_focus_score))
     
@@ -310,7 +305,7 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
         sparkline = "━"
         trend_emoji = "➡️"
     
-    # Status semantici
+    # Status
     if final_focus_score >= 80:
         focus_status = "✨ Excellent"
         focus_color = "🟢"
@@ -346,11 +341,11 @@ def generate_final_report_from_memory(final_context, user_context="General Creat
     else:
         grade = "D"
     
-    # 4. SUMMARY DELL'LLM (ultimo commento di Leonardo)
+    # 4. SUMMARY
     leonardo_final_summary = final_context.get('summary_so_far', 'Session completed.')
     leonardo_comment = final_context.get('leonardo_comment', 'Keep refining your craft.')
     
-    # 5. GENERAZIONE PROMPT PER LLM
+    # 5. PROMPT GENERATION BY LLM
     prompt = f"""
 You are Leonardo da Vinci—Renaissance polymath reborn—crafting a SESSION CODEX.
 
@@ -452,15 +447,15 @@ Current score: {final_focus_score}/100, Distractions: {distractions_count}
     print(f"  - Distractions: {distractions_count}")
     print(f"  - Trend: {trend}")
     
-    # 6. CHIAMATA A LLM
+    # 6. CALL TO LLM
     try:
         report = ask_llm(prompt, max_tokens=900, temperature=0.3, provider="groq")
-        print("✅ Report generato con successo")
+        print("Report generato con successo")
         return report
     except Exception as e:
-        print(f"❌ Errore chiamata LLM: {e}")
+        print(f"Errore chiamata LLM: {e}")
         
-        # Fallback report con DATI REALI
+        # Fallback report with REAL DATA
         return f"""
 # 🎨 Session Codex: {user_context}
 
@@ -514,9 +509,3 @@ You maintained deep work for {deep_work_percentage}% of the session ({deep_work_
 **Error Note:** Leonardo's analytical mind encountered an error. This is an automated summary with REAL data.
 Error: {str(e)}
 """
-
-# ============================================
-# Usage examples
-# ============================================
-#if __name__ == "__main__":
- #   print(ask_llm("What is 2+2?", provider="groq"))

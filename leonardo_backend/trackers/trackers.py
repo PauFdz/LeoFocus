@@ -1,19 +1,29 @@
 import json
 import time
 import threading
+import os
 import sys
 from pynput import keyboard, mouse
 import subprocess
-import os
+from collections import Counter
+import tkinter as tk
+from tkinter import messagebox
 from local_summarizer import summarize_activity_with_llm, get_start_session_advice
 from llm_client_2 import create_json_memory, generate_final_report_from_memory
 
+# FORCE UTF-8 ON WINDOWS
+if sys.platform.startswith("win"):
+    sys.stdout.reconfigure(encoding='utf-8')
+    sys.stderr.reconfigure(encoding='utf-8')
+
+
 # -----------------------------
-# CONFIGURAZIONE APPLICAZIONI
+# Apllication Configuration
 # -----------------------------
 DISTRACTING_APPS = ["YouTube", "TikTok", "Netflix", "Facebook", "Instagram", "WhatsApp", "TV"]
 PRODUCTIVE_APPS = ["VSCode", "PyCharm", "Terminal", "Word", "Excel", "Electron", "GitHub", "GitHub Desktop", "Notes", "Note", "Obsidian", "Notion", "Sublime Text", "IntelliJ IDEA", "Xcode", "Android Studio"]
 BROWSER_DISTRACTIONS = ["Facebook", "Instagram", "Netflix", "YouTube", "TikTok", "Reddit", "Twitter", "Prime Video", "Twitch", "Spotify"]
+STOP_REQUESTED = False
 
 # SYSTEM PROCESSES TO IGNORE (Windows)
 SYSTEM_PROCESSES = [
@@ -33,7 +43,10 @@ SYSTEM_PROCESSES = [
     "Configuración",
     "SystemSettings",
     "Windows Security",
-    "Seguridad de Windows"
+    "Seguridad de Windows",
+    "Conmutación de tareas",   # (Spanish)
+    "Task Switching",          # (English)
+    "Task View"                # (Windows 10/11)
 ]
 
 # SYSTEM PROCESSES TO IGNORE (macOS)
@@ -243,7 +256,7 @@ def get_all_windows():
                       if w.title and len(w.title) > 0 and not is_system_process(w.title)]
             return windows
     except Exception as e:
-        print(f"⚠️ Error getting windows: {e}")
+        print(f"Error getting windows: {e}")
         return []
 
 # -----------------------------
@@ -265,7 +278,7 @@ def monitor_active_window():
         if inactive_elapsed > activity_state["inactive_threshold"]:
             if activity_state["last_pause_start"] is None:
                 activity_state["last_pause_start"] = activity_state["last_input_time"]
-                print(f"⏸️ Pause started at {time.ctime(activity_state['last_pause_start'])}")
+                print(f"Pause started at {time.ctime(activity_state['last_pause_start'])}")
         else:
             # End pause when activity resumes
             if activity_state["last_pause_start"] is not None:
@@ -276,7 +289,7 @@ def monitor_active_window():
                     "end": time.ctime(pause_end),
                     "duration": int(pause_duration)
                 })
-                print(f"▶️ Pause ended. Duration: {int(pause_duration)} seconds")
+                print(f"Pause ended. Duration: {int(pause_duration)} seconds")
                 activity_state["last_pause_start"] = None
 
         # Window switching logic
@@ -364,7 +377,7 @@ def on_scroll(x, y, dx, dy):
     activity_state["last_input_time"] = time.time()
 
 # -----------------------------
-# CATEGORIZZA APP
+# CATEGORIZE APP
 # -----------------------------
 def categorize_app(app_name, doc_name=None):
     for category, apps in APP_CATEGORIES.items():
@@ -378,11 +391,137 @@ def categorize_app(app_name, doc_name=None):
 
     return "other"
 
+
+# ========================================================================================
+# CUSTOM DA VINCI POPUP (For getting the user to know whenever is getting distracted)
+# ========================================================================================
+last_scold_time = 0
+
+def show_da_vinci_scolding(distraction_name):
+    """Shows a custom, styled popup with the angry avatar - FIXED LAYOUT"""
+    
+    # 1. Clean up app name
+    clean_name = distraction_name
+    for app in DISTRACTING_APPS + BROWSER_DISTRACTIONS:
+        if app.lower() in distraction_name.lower():
+            clean_name = app
+            break
+            
+    def _show():
+        try:
+            # Create main window
+            root = tk.Tk()
+            root.title("Leonardo is Displeased")
+            
+            # CONFIGURATION
+            bg_color = "#FAF8F5"       # Warm off-white
+            text_color = "#1A1614"     # Ink Black
+            accent_color = "#B8442C"   # Terracotta Red (Border)
+            
+            # Window Size
+            w, h = 420, 520 
+            
+            # Center on screen logic
+            ws = root.winfo_screenwidth()
+            hs = root.winfo_screenheight()
+            x = (ws/2) - (w/2)
+            y = (hs/2) - (h/2)
+            
+            root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+            root.configure(bg=accent_color)
+            root.attributes("-topmost", True)
+            root.overrideredirect(True) 
+            
+            # SAFETY CLOSE FUNCTIONS
+            def close_popup(event=None):
+                root.destroy()
+            
+            # Bind ESC key and CLICK ANYWHERE to close (Safety net!)
+            root.bind("<Escape>", close_popup)
+            root.bind("<Button-1>", close_popup) 
+            
+            # INNER CONTAINER
+            inner_frame = tk.Frame(root, bg=bg_color)
+            # pack_propagate(False) ensures the frame stays the size we want
+            # and doesn't explode if the image is too big
+            inner_frame.pack_propagate(False) 
+            inner_frame.pack(expand=True, fill="both", padx=5, pady=5)
+            
+            # Allow clicking the inner frame to close too
+            inner_frame.bind("<Button-1>", close_popup)
+
+            # 1. THE TITLE
+            title_font = ("Times New Roman", 22, "bold italic")
+            title_lbl = tk.Label(inner_frame, 
+                     text="Che disastro!", 
+                     font=title_font, 
+                     bg=bg_color, 
+                     fg=accent_color)
+            title_lbl.pack(pady=(20, 10))
+            title_lbl.bind("<Button-1>", close_popup)
+            
+            # 2. THE IMAGE (With Auto-Resize)
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            img_path = os.path.join(script_dir, "angry.png")
+            
+            try:
+                photo = tk.PhotoImage(file=img_path)
+                
+                # LOOP TO SHRINK IMAGE UNTIL IT FITS
+                # Keep halving the size until it is smaller than 220px width/height
+                while photo.width() > 220 or photo.height() > 220:
+                    photo = photo.subsample(2, 2)
+                    
+                img_label = tk.Label(inner_frame, image=photo, bg=bg_color)
+                img_label.image = photo 
+                img_label.pack(pady=5)
+                img_label.bind("<Button-1>", close_popup)
+            except Exception as e:
+                print(f"Image error: {e}")
+                tk.Label(inner_frame, text="😡", font=("Arial", 50), bg=bg_color).pack(pady=10)
+
+            # 3. THE MESSAGE
+            msg_font = ("Garamond", 15) 
+            msg_text = (f"You dare waste your genius on\n{clean_name}?\n\n"
+                        f"I did not paint the Mona Lisa\nwhile distracted by such nonsense.\n\n"
+                        f"Return to your craft immediately.")
+            
+            msg_lbl = tk.Label(inner_frame, 
+                     text=msg_text, 
+                     font=msg_font, 
+                     bg=bg_color, 
+                     fg=text_color,
+                     justify="center")
+            msg_lbl.pack(pady=15, padx=10)
+            msg_lbl.bind("<Button-1>", close_popup)
+
+            # 4. THE BUTTON
+            btn_font = ("Helvetica", 11, "bold")
+            btn = tk.Button(inner_frame, 
+                            text="I SHALL FOCUS NOW", 
+                            command=close_popup,
+                            bg=text_color, 
+                            fg="white", 
+                            font=btn_font,
+                            relief="flat",
+                            padx=20,
+                            pady=10,
+                            cursor="hand2")
+            btn.pack(side="bottom", pady=25)
+            
+            root.mainloop()
+            
+        except Exception as e:
+            print(f"Error showing popup: {e}")
+
+    threading.Thread(target=_show, daemon=True).start()
+
+
 # -----------------------------
 # REPORT LOOP
 # -----------------------------
 def report_loop_json():
-    # Stato Iniziale della Memoria
+    # Initial State of the memory
     memory_context = {
         "focus_score": 100,
         "status": "Starting",
@@ -395,12 +534,11 @@ def report_loop_json():
     activity_state["memory_context"] = memory_context
     last_chunk_time = time.time()
     
-    # Accumulatori
     chunk_windows_list = []      
     chunk_distraction_hits = 0   
     chunk_samples = 0            
 
-    while True:
+    while not STOP_REQUESTED:
         time.sleep(1)
         now = time.time()
         
@@ -413,7 +551,7 @@ def report_loop_json():
             activity_state["window_times"][app_name] = activity_state["window_times"].get(app_name, 0) + elapsed
             activity_state["last_switch_time"] = now
 
-        # --- 1. RILEVAMENTO DISTRAZIONI PIÙ INTELLIGENTE ---
+        # 1. RILEVAMENTO DISTRAZIONI PIÙ INTELLIGENTE
         is_distracted_now = False
         full_window_name = app_name if app_name else "Idle"
         
@@ -524,11 +662,40 @@ def report_loop_json():
                 activity_state["memory_context"] = memory_context 
                 
                 # Determina emozione basata sui DATI REALI, non sull'LLM
+                # Determina emozione basata sui DATI REALI, non sull'LLM
                 current_emotion = 'neutral'
                 current_score = memory_context.get('focus_score', 100)
                 
+                global last_scold_time # Access the global timer
+                
                 if recent_distraction > 50:
                     current_emotion = 'angry'
+                    
+                    # --- SMARTER POPUP TRIGGER ---
+                    if (now - last_scold_time) > 60:
+                        
+                        # 1. Count which windows were used in this "angry" chunk
+                        # chunk_windows_list contains the active window for every second of the last 30s
+                        window_counts = Counter(chunk_windows_list)
+                        
+                        # 2. Sort them: most frequent first
+                        most_common_windows = window_counts.most_common()
+                        
+                        # 3. Pick the top one that isn't our own app
+                        blame_app = "Distraction" # Fallback name
+                        
+                        for win_name, count in most_common_windows:
+                            # IGNORE: leonardoapp, python, or empty names
+                            lower_name = win_name.lower()
+                            if "leonardoapp" not in lower_name and "python" not in lower_name and "debug" not in lower_name:
+                                blame_app = win_name
+                                break
+                        
+                        # 4. Show the popup blaming the real culprit
+                        show_da_vinci_scolding(blame_app)
+                        last_scold_time = now
+                    # -------------------------------
+
                 elif current_score < 60:
                     current_emotion = 'worried'
                 elif current_score > 85:
@@ -543,7 +710,7 @@ def report_loop_json():
                 print(json.dumps(leo_packet), flush=True)
                 
             except Exception as e:
-                print(f"⚠️ LLM Error: {e}", file=sys.stderr)
+                print(f"LLM Error: {e}", file=sys.stderr)
 
             # Reset
             chunk_windows_list = []
@@ -575,7 +742,15 @@ def _calculate_grade(score):
         return "C"
     else:
         return "D"
-    
+
+def listen_for_commands():
+        global STOP_REQUESTED
+        while True:
+            cmd = sys.stdin.readline().strip()
+            if cmd == "STOP":
+                STOP_REQUESTED = True
+                break
+
 if __name__ == "__main__":
     # 1. ACQUISIZIONE CONTESTO DA ARGOMENTI (passati da Flutter)
     if len(sys.argv) > 1:
@@ -583,7 +758,7 @@ if __name__ == "__main__":
     else:
         user_context = "General Work Session"
 
-    # --- 🌟 MAGIC FIX: CONTEXT OVERRIDE 🌟 ---
+    # --- MAGIC FIX: CONTEXT OVERRIDE ---
     # Rende Leonardo intelligente: se dici che usi WhatsApp, lui non si arrabbia.
     print(f"DEBUG: Analyzing context for exceptions: '{user_context}'")
     context_lower = user_context.lower()
@@ -592,14 +767,14 @@ if __name__ == "__main__":
     # Usiamo list(...) per creare una copia e poter modificare l'originale mentre iteriamo
     for app in list(DISTRACTING_APPS): 
         if app.lower() in context_lower:
-            print(f"✨ Context Override: {app} detected in goal. Moving to PRODUCTIVE.")
+            print(f"Context Override: {app} detected in goal. Moving to PRODUCTIVE.")
             DISTRACTING_APPS.remove(app)
             PRODUCTIVE_APPS.append(app)
 
     # 2. Controllo Browser (es. YouTube, Facebook)
     for site in list(BROWSER_DISTRACTIONS):
         if site.lower() in context_lower:
-            print(f"✨ Context Override: {site} allowed in browser.")
+            print(f"Context Override: {site} allowed in browser.")
             BROWSER_DISTRACTIONS.remove(site)
     # -------------------------------------------------------
 
@@ -632,10 +807,8 @@ if __name__ == "__main__":
     except Exception as e:
         log_debug({"error_advice": str(e)})
     # -------------------------------------------------------
-    try:
-        sys.stdin.readline()
-    except: 
-        pass
+    
+    threading.Thread(target=listen_for_commands, daemon=True).start()
 
     # Avvia monitoraggio
     activity_state["session_start"] = time.time()
@@ -647,54 +820,44 @@ if __name__ == "__main__":
     mouse_listener = mouse.Listener(on_move=on_move, on_click=on_click, on_scroll=on_scroll)
     mouse_listener.start()
 
-    try:
-        # Usiamo il loop JSON
-        report_loop_json()
+    # Usiamo il loop JSON
+    report_loop_json()
 
-    except KeyboardInterrupt:
-        # Quando Flutter chiude il processo o invia segnale
-        activity_state["session_end"] = time.time()
-        
-        # Comunica a Flutter che stiamo pensando
-        print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
-        
-        # Genering report LLM
-        # summary = summarize_activity_with_llm(activity_state)
-        # now generates using the final json instead of the logs like before
-        final_memory = activity_state.get("memory_context", {})
+    # Session ended cleanly
+    activity_state["session_end"] = time.time()
 
-        session_duration = activity_state["session_end"] - activity_state["session_start"]
-        sorted_apps = sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
+    print(json.dumps({"type": "status", "message": "Leonardo is composing the Codex..."}), flush=True)
 
-        stats_package = {
-            "duration_seconds": int(session_duration),
-            "total_switches": activity_state["window_switches"],
-            "focus_score": final_memory.get("focus_score", 50),
-            "top_apps": [{"name": k, "seconds": int(v)} for k, v in sorted_apps], # Formattiamo bene per JSON
-            "total_distraction_time": activity_state.get("total_distracted_time", 0),
-            "pause_count": len(activity_state.get("pause_periods", [])),
-            "key_presses": activity_state.get("key_presses", 0),
-            "mouse_clicks": activity_state.get("mouse_clicks", 0)
-        }
+    final_memory = activity_state.get("memory_context", {})
 
-        try:
-            # generating the final json
-            #report_markdown = generate_final_report_from_memory(final_memory)
-            report_markdown = generate_final_report_from_memory(
-                final_memory, 
-                activity_state["user_context"],
-                stats_package
-            )
-            # Invia il report finale
-            final_packet = {
-                "type": "report",
-                "content": report_markdown,
-                "stats": stats_package,
-                "final_score": final_memory.get("focus_score", 50),
-                "grade": _calculate_grade(final_memory.get("focus_score", 50)),
-                "total_iterations": len(final_memory.get('history', []))
-            }
-            print(json.dumps(final_packet), flush=True)
+    session_duration = activity_state["session_end"] - activity_state["session_start"]
+    sorted_apps = sorted(activity_state["window_times"].items(), key=lambda x: x[1], reverse=True)[:5]
 
-        except Exception as e:
-            print(f"⚠️ Error generating report: {e}", file=sys.stderr)
+    stats_package = {
+        "duration_seconds": int(session_duration),
+        "total_switches": activity_state["window_switches"],
+        "focus_score": final_memory.get("focus_score", 50),
+        "top_apps": [{"name": k, "seconds": int(v)} for k, v in sorted_apps],
+        "total_distraction_time": activity_state.get("total_distracted_time", 0),
+        "pause_count": len(activity_state.get("pause_periods", [])),
+        "key_presses": activity_state.get("key_presses", 0),
+        "mouse_clicks": activity_state.get("mouse_clicks", 0)
+    }
+
+    report_markdown = generate_final_report_from_memory(
+        final_memory,
+        activity_state["user_context"],
+        stats_package
+    )
+
+    final_packet = {
+        "type": "report",
+        "content": report_markdown,
+        "stats": stats_package,
+        "final_score": final_memory.get("focus_score", 50),
+        "grade": _calculate_grade(final_memory.get("focus_score", 50)),
+        "total_iterations": len(final_memory.get('history', []))
+    }
+
+    print(json.dumps(final_packet), flush=True)
+    sys.exit(0)
