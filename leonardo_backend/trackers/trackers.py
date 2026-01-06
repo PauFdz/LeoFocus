@@ -33,28 +33,31 @@ def show_popup(app_name, img_path):
         bg_color = "#FAF8F5"
         text_color = "#1A1614"
         accent_color = "#B8442C"
-        btn_bg = "#1A1614"  # Force Ink Black for button
+        btn_bg = "#1A1614" 
 
-        # --- GEOMETRY ---
+        # --- SETUP HIDDEN WINDOW ---
+        # Hide window initially to prevent 'jumping' or wrong placement
+        root.withdraw()
+
+        # --- GEOMETRY CALCULATION ---
         w, h = 420, 520
         
-        # 1. Update tasks to ensure screen info is accurate (Crucial for Mac)
-        root.update_idletasks() 
-        
+        # Get screen dimensions
         ws = root.winfo_screenwidth()
         hs = root.winfo_screenheight()
         
-        # 2. Ensure integers for geometry string
-        x = int((ws - w) / 2)
-        y = int((hs - h) / 2)
+        # Calculate X and Y coordinates (Strict Integers)
+        x = int((ws / 2) - (w / 2))
+        y = int((hs / 2) - (h / 2))
         
+        # Set position
         root.geometry(f'{w}x{h}+{x}+{y}')
 
         # --- OS SPECIFIC TWEAKS ---
         root.configure(bg=accent_color)
         root.attributes("-topmost", True)
         
-        # Windows border removal
+        # Borderless logic (Safe for all platforms)
         try:
             root.overrideredirect(True) 
         except:
@@ -102,9 +105,7 @@ def show_popup(app_name, img_path):
         msg_lbl.pack(pady=15, padx=10)
         msg_lbl.bind("<Button-1>", close_popup)
 
-        # --- CUSTOM FAKE BUTTON (Fixes Mac Color Issue) ---
-        # Standard buttons on Mac ignore background colors. 
-        # We use a Label that LOOKS like a button instead.
+        # --- CUSTOM FAKE BUTTON (For High Contrast) ---
         btn = tk.Label(inner_frame, 
                        text="I SHALL FOCUS NOW", 
                        font=("Helvetica", 11, "bold"),
@@ -112,10 +113,14 @@ def show_popup(app_name, img_path):
                        fg="white",
                        padx=20, 
                        pady=12,
-                       cursor="hand2") # 'hand2' shows pointer cursor
+                       cursor="hand2")
         
         btn.pack(side="bottom", pady=25)
-        btn.bind("<Button-1>", close_popup) # Make it clickable
+        btn.bind("<Button-1>", close_popup)
+
+        # --- SHOW WINDOW ---
+        # Reveal the window now that it is positioned correctly
+        root.deiconify()
 
         # --- FORCE FOCUS (CRITICAL FOR MAC) ---
         root.lift()
