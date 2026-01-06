@@ -16,7 +16,121 @@ if sys.platform.startswith("win"):
     sys.stdout.reconfigure(encoding='utf-8')
     sys.stderr.reconfigure(encoding='utf-8')
 
+# ============================================
+# CROSS-PLATFORM POPUP SCRIPT (Embedded)
+# ============================================
+POPUP_SCRIPT_CODE = r"""
+import tkinter as tk
+import sys
+import os
 
+def show_popup(app_name, img_path):
+    try:
+        root = tk.Tk()
+        root.title("Leonardo is Displeased")
+
+        # --- THEME ---
+        bg_color = "#FAF8F5"
+        text_color = "#1A1614"
+        accent_color = "#B8442C"
+
+        # --- GEOMETRY ---
+        w, h = 420, 520
+        ws = root.winfo_screenwidth()
+        hs = root.winfo_screenheight()
+        x = (ws/2) - (w/2)
+        y = (hs/2) - (h/2)
+        root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+
+        # --- OS SPECIFIC TWEAKS ---
+        root.configure(bg=accent_color)
+        root.attributes("-topmost", True)
+        
+        # Mac/Linux stability fix: standard decorations are safer than overrides
+        # But we try to remove borders if possible.
+        if sys.platform == "win32":
+            root.overrideredirect(True)
+        else:
+            # On Mac/Linux, overrideredirect can prevent focus. 
+            # We try it, but if it bugs, we might need to remove this line.
+            # For now, we keep it but force focus below.
+            try:
+                root.overrideredirect(True) 
+            except:
+                pass
+
+        # --- CLOSE LOGIC ---
+        def close_popup(event=None):
+            root.destroy()
+        
+        root.bind("<Escape>", close_popup)
+        root.bind("<Button-1>", close_popup)
+
+        # --- CONTENT ---
+        inner_frame = tk.Frame(root, bg=bg_color)
+        inner_frame.pack_propagate(False)
+        inner_frame.pack(expand=True, fill="both", padx=5, pady=5)
+        inner_frame.bind("<Button-1>", close_popup)
+
+        # Title
+        tk.Label(inner_frame, text="Che disastro!", font=("Times New Roman", 22, "bold italic"), 
+                 bg=bg_color, fg=accent_color).pack(pady=(20, 10))
+
+        # Image
+        try:
+            if os.path.exists(img_path):
+                photo = tk.PhotoImage(file=img_path)
+                while photo.width() > 220 or photo.height() > 220:
+                    photo = photo.subsample(2, 2)
+                img_lbl = tk.Label(inner_frame, image=photo, bg=bg_color)
+                img_lbl.image = photo
+                img_lbl.pack(pady=5)
+                img_lbl.bind("<Button-1>", close_popup)
+            else:
+                tk.Label(inner_frame, text="😡", font=("Arial", 50), bg=bg_color).pack(pady=10)
+        except Exception:
+            tk.Label(inner_frame, text="😡", font=("Arial", 50), bg=bg_color).pack(pady=10)
+
+        # Message
+        msg_text = (f"You dare waste your genius on\n{app_name}?\n\n"
+                    f"I did not paint the Mona Lisa\nwhile distracted by such nonsense.")
+        
+        msg_lbl = tk.Label(inner_frame, text=msg_text, font=("Garamond", 15), 
+                 bg=bg_color, fg=text_color, justify="center")
+        msg_lbl.pack(pady=15, padx=10)
+        msg_lbl.bind("<Button-1>", close_popup)
+
+        # Button
+        btn = tk.Button(inner_frame, text="I SHALL FOCUS NOW", command=close_popup,
+                        bg=text_color, fg="white", font=("Helvetica", 11, "bold"), 
+                        relief="flat", padx=20, pady=10)
+        btn.pack(side="bottom", pady=25)
+
+        # --- FORCE FOCUS (CRITICAL FOR MAC) ---
+        root.lift()
+        root.focus_force()
+        
+        # Mac-specific: Bring to front via AppleScript if needed
+        if sys.platform == "darwin":
+            try:
+                os.system('''/usr/bin/osascript -e 'tell app "System Events" to set frontmost of first process whose unix id is %d to true' ''' % os.getpid())
+            except:
+                pass
+
+        root.mainloop()
+
+    except Exception as e:
+        print(f"Popup error: {e}")
+
+if __name__ == "__main__":
+    # Arguments: 1=AppName, 2=ImagePath
+    try:
+        app = sys.argv[1] if len(sys.argv) > 1 else "Distraction"
+        img = sys.argv[2] if len(sys.argv) > 2 else ""
+        show_popup(app, img)
+    except:
+        pass
+"""
 # -----------------------------
 # Apllication Configuration
 # -----------------------------
@@ -392,13 +506,16 @@ def categorize_app(app_name, doc_name=None):
     return "other"
 
 
-# ========================================================================================
-# CUSTOM DA VINCI POPUP (For getting the user to know whenever is getting distracted)
-# ========================================================================================
+# ============================================
+# SUBPROCESS POPUP LAUNCHER (Safe for Mac/Linux)
+# ============================================
 last_scold_time = 0
 
 def show_da_vinci_scolding(distraction_name):
-    """Shows a custom, styled popup with the angry avatar - FIXED LAYOUT"""
+    """
+    Launches a completely separate python process to show the popup.
+    This prevents 'Main Thread' crashes on macOS and Linux.
+    """
     
     # 1. Clean up app name
     clean_name = distraction_name
@@ -406,115 +523,22 @@ def show_da_vinci_scolding(distraction_name):
         if app.lower() in distraction_name.lower():
             clean_name = app
             break
-            
-    def _show():
-        try:
-            # Create main window
-            root = tk.Tk()
-            root.title("Leonardo is Displeased")
-            
-            # CONFIGURATION
-            bg_color = "#FAF8F5"       # Warm off-white
-            text_color = "#1A1614"     # Ink Black
-            accent_color = "#B8442C"   # Terracotta Red (Border)
-            
-            # Window Size
-            w, h = 420, 520 
-            
-            # Center on screen logic
-            ws = root.winfo_screenwidth()
-            hs = root.winfo_screenheight()
-            x = (ws/2) - (w/2)
-            y = (hs/2) - (h/2)
-            
-            root.geometry('%dx%d+%d+%d' % (w, h, x, y))
-            root.configure(bg=accent_color)
-            root.attributes("-topmost", True)
-            root.overrideredirect(True) 
-            
-            # SAFETY CLOSE FUNCTIONS
-            def close_popup(event=None):
-                root.destroy()
-            
-            # Bind ESC key and CLICK ANYWHERE to close (Safety net!)
-            root.bind("<Escape>", close_popup)
-            root.bind("<Button-1>", close_popup) 
-            
-            # INNER CONTAINER
-            inner_frame = tk.Frame(root, bg=bg_color)
-            # pack_propagate(False) ensures the frame stays the size we want
-            # and doesn't explode if the image is too big
-            inner_frame.pack_propagate(False) 
-            inner_frame.pack(expand=True, fill="both", padx=5, pady=5)
-            
-            # Allow clicking the inner frame to close too
-            inner_frame.bind("<Button-1>", close_popup)
-
-            # 1. THE TITLE
-            title_font = ("Times New Roman", 22, "bold italic")
-            title_lbl = tk.Label(inner_frame, 
-                     text="Che disastro!", 
-                     font=title_font, 
-                     bg=bg_color, 
-                     fg=accent_color)
-            title_lbl.pack(pady=(20, 10))
-            title_lbl.bind("<Button-1>", close_popup)
-            
-            # 2. THE IMAGE (With Auto-Resize)
-            script_dir = os.path.dirname(os.path.abspath(__file__))
-            img_path = os.path.join(script_dir, "angry.png")
-            
-            try:
-                photo = tk.PhotoImage(file=img_path)
-                
-                # LOOP TO SHRINK IMAGE UNTIL IT FITS
-                # Keep halving the size until it is smaller than 220px width/height
-                while photo.width() > 220 or photo.height() > 220:
-                    photo = photo.subsample(2, 2)
-                    
-                img_label = tk.Label(inner_frame, image=photo, bg=bg_color)
-                img_label.image = photo 
-                img_label.pack(pady=5)
-                img_label.bind("<Button-1>", close_popup)
-            except Exception as e:
-                print(f"Image error: {e}")
-                tk.Label(inner_frame, text="😡", font=("Arial", 50), bg=bg_color).pack(pady=10)
-
-            # 3. THE MESSAGE
-            msg_font = ("Garamond", 15) 
-            msg_text = (f"You dare waste your genius on\n{clean_name}?\n\n"
-                        f"I did not paint the Mona Lisa\nwhile distracted by such nonsense.\n\n"
-                        f"Return to your craft immediately.")
-            
-            msg_lbl = tk.Label(inner_frame, 
-                     text=msg_text, 
-                     font=msg_font, 
-                     bg=bg_color, 
-                     fg=text_color,
-                     justify="center")
-            msg_lbl.pack(pady=15, padx=10)
-            msg_lbl.bind("<Button-1>", close_popup)
-
-            # 4. THE BUTTON
-            btn_font = ("Helvetica", 11, "bold")
-            btn = tk.Button(inner_frame, 
-                            text="I SHALL FOCUS NOW", 
-                            command=close_popup,
-                            bg=text_color, 
-                            fg="white", 
-                            font=btn_font,
-                            relief="flat",
-                            padx=20,
-                            pady=10,
-                            cursor="hand2")
-            btn.pack(side="bottom", pady=25)
-            
-            root.mainloop()
-            
-        except Exception as e:
-            print(f"Error showing popup: {e}")
-
-    threading.Thread(target=_show, daemon=True).start()
+    
+    # 2. Prepare paths
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    img_path = os.path.join(script_dir, "angry.png")
+    
+    # 3. Launch the popup in a new independent process
+    try:
+        # We pass the python code string directly to the new process using "-c"
+        subprocess.Popen(
+            [sys.executable, "-c", POPUP_SCRIPT_CODE, clean_name, img_path],
+            stdout=subprocess.DEVNULL, # Hide output
+            stderr=subprocess.DEVNULL, # Hide errors
+            start_new_session=True     # Detach completely (Linux/Mac)
+        )
+    except Exception as e:
+        print(f"Failed to launch popup subprocess: {e}")
 
 
 # -----------------------------
