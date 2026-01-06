@@ -17,7 +17,7 @@ if sys.platform.startswith("win"):
     sys.stderr.reconfigure(encoding='utf-8')
 
 # ============================================
-# CROSS-PLATFORM POPUP SCRIPT (Embedded)
+# CROSS-PLATFORM POPUP SCRIPT (The "Blueprint")
 # ============================================
 POPUP_SCRIPT_CODE = r"""
 import tkinter as tk
@@ -33,31 +33,32 @@ def show_popup(app_name, img_path):
         bg_color = "#FAF8F5"
         text_color = "#1A1614"
         accent_color = "#B8442C"
+        btn_bg = "#1A1614"  # Force Ink Black for button
 
         # --- GEOMETRY ---
         w, h = 420, 520
+        
+        # 1. Update tasks to ensure screen info is accurate (Crucial for Mac)
+        root.update_idletasks() 
+        
         ws = root.winfo_screenwidth()
         hs = root.winfo_screenheight()
-        x = (ws/2) - (w/2)
-        y = (hs/2) - (h/2)
-        root.geometry('%dx%d+%d+%d' % (w, h, x, y))
+        
+        # 2. Ensure integers for geometry string
+        x = int((ws - w) / 2)
+        y = int((hs - h) / 2)
+        
+        root.geometry(f'{w}x{h}+{x}+{y}')
 
         # --- OS SPECIFIC TWEAKS ---
         root.configure(bg=accent_color)
         root.attributes("-topmost", True)
         
-        # Mac/Linux stability fix: standard decorations are safer than overrides
-        # But we try to remove borders if possible.
-        if sys.platform == "win32":
-            root.overrideredirect(True)
-        else:
-            # On Mac/Linux, overrideredirect can prevent focus. 
-            # We try it, but if it bugs, we might need to remove this line.
-            # For now, we keep it but force focus below.
-            try:
-                root.overrideredirect(True) 
-            except:
-                pass
+        # Windows border removal
+        try:
+            root.overrideredirect(True) 
+        except:
+            pass
 
         # --- CLOSE LOGIC ---
         def close_popup(event=None):
@@ -68,7 +69,7 @@ def show_popup(app_name, img_path):
 
         # --- CONTENT ---
         inner_frame = tk.Frame(root, bg=bg_color)
-        inner_frame.pack_propagate(False)
+        inner_frame.pack_propagate(False) 
         inner_frame.pack(expand=True, fill="both", padx=5, pady=5)
         inner_frame.bind("<Button-1>", close_popup)
 
@@ -76,10 +77,11 @@ def show_popup(app_name, img_path):
         tk.Label(inner_frame, text="Che disastro!", font=("Times New Roman", 22, "bold italic"), 
                  bg=bg_color, fg=accent_color).pack(pady=(20, 10))
 
-        # Image
+        # Image (With Resize Loop)
         try:
             if os.path.exists(img_path):
                 photo = tk.PhotoImage(file=img_path)
+                # Auto-shrink logic
                 while photo.width() > 220 or photo.height() > 220:
                     photo = photo.subsample(2, 2)
                 img_lbl = tk.Label(inner_frame, image=photo, bg=bg_color)
@@ -100,17 +102,26 @@ def show_popup(app_name, img_path):
         msg_lbl.pack(pady=15, padx=10)
         msg_lbl.bind("<Button-1>", close_popup)
 
-        # Button
-        btn = tk.Button(inner_frame, text="I SHALL FOCUS NOW", command=close_popup,
-                        bg=text_color, fg="white", font=("Helvetica", 11, "bold"), 
-                        relief="flat", padx=20, pady=10)
+        # --- CUSTOM FAKE BUTTON (Fixes Mac Color Issue) ---
+        # Standard buttons on Mac ignore background colors. 
+        # We use a Label that LOOKS like a button instead.
+        btn = tk.Label(inner_frame, 
+                       text="I SHALL FOCUS NOW", 
+                       font=("Helvetica", 11, "bold"),
+                       bg=btn_bg, 
+                       fg="white",
+                       padx=20, 
+                       pady=12,
+                       cursor="hand2") # 'hand2' shows pointer cursor
+        
         btn.pack(side="bottom", pady=25)
+        btn.bind("<Button-1>", close_popup) # Make it clickable
 
         # --- FORCE FOCUS (CRITICAL FOR MAC) ---
         root.lift()
         root.focus_force()
         
-        # Mac-specific: Bring to front via AppleScript if needed
+        # Mac-specific: Force window to front using AppleScript
         if sys.platform == "darwin":
             try:
                 os.system('''/usr/bin/osascript -e 'tell app "System Events" to set frontmost of first process whose unix id is %d to true' ''' % os.getpid())
@@ -123,7 +134,6 @@ def show_popup(app_name, img_path):
         print(f"Popup error: {e}")
 
 if __name__ == "__main__":
-    # Arguments: 1=AppName, 2=ImagePath
     try:
         app = sys.argv[1] if len(sys.argv) > 1 else "Distraction"
         img = sys.argv[2] if len(sys.argv) > 2 else ""
@@ -131,6 +141,7 @@ if __name__ == "__main__":
     except:
         pass
 """
+
 # -----------------------------
 # Apllication Configuration
 # -----------------------------
