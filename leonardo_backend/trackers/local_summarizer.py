@@ -11,9 +11,6 @@ def sanitize_title(t):
     t = re.sub(r'\d{4,}', '####', t)
     return t
 
-# ---------------------------------------------------------
-# NUOVA FUNZIONE: Consigli PRE-sessione
-# ---------------------------------------------------------
 def get_start_session_advice(user_context):
     """
     Generate initial suggestions based on user context before starting.
@@ -48,18 +45,16 @@ def get_start_session_advice(user_context):
     - Listen to the voice of instruction, not the chatter of the idle.
     """
     try:
-        # Usiamo una temperatura leggermente più alta per creatività
         return ask_llm(prompt, max_tokens=250, temperature=0.5)
     except Exception as e:
         return f"Leonardo is currently meditating. Error: {e}"
 
 # ---------------------------------------------------------
-# FUNZIONE MODIFICATA: Prompt per il Report FINALE
+# PROMPT FOR THE FINAL REPORT
 # ---------------------------------------------------------
 def build_prompt(activity_state):
     """Build a structured prompt for the LLM including User Context"""
     
-    # 1. Recuperiamo il contesto che avremo salvato in trackers.py
     user_context = activity_state.get("user_context", "General Student/Worker")
     
     app_times = activity_state.get("window_times", {})
@@ -72,11 +67,8 @@ def build_prompt(activity_state):
         top_lines.append(f"- {name} | time_sec:{int(seconds)} | doc:{doc}")
 
     total_sec = activity_state.get("session_end", 0) - activity_state.get("session_start", 0)
-    switches = activity_state.get("window_switches", 0) # Usiamo switches totali, lasciamo giudicare all'LLM
+    switches = activity_state.get("window_switches", 0)
     pauses = len(activity_state.get("pause_periods", []))
-
-    # Nota: Rimuoviamo i riferimenti rigidi a "productive_time" calcolato da Python,
-    # perché ora vogliamo che sia l'LLM a decidere se Instagram era produttivo o no in base al contesto.
 
     prompt = f"""
 You are Leonardo da Vinci—reborn in digital form—writing with a playful, witty personality.
@@ -148,7 +140,7 @@ def summarize_activity_with_llm(activity_state):
         
         summary = ask_llm(
             prompt=prompt,
-            max_tokens=600,  # Aumentato leggermente per permettere analisi più profonda
+            max_tokens=600,
             temperature=0.3
         )
         

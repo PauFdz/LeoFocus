@@ -1,0 +1,1 @@
+ C:\\Users\\paufe\\Documents\\Pau\\Universitat\\PoliMi\\CSI\\Project4\\frontend\\.dart_tool\\flutter_build\\1d7863cc098f7559241086f9c05f0046\\native_assets.json: 
