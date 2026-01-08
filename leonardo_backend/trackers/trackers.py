@@ -848,6 +848,20 @@ if __name__ == "__main__":
         log_debug({"error_advice": str(e)})
     # -------------------------------------------------------
     
+    # =========================================================================
+    # Wait for 'START' signal from Flutter
+    # =========================================================================
+    while True:
+        try:
+            line = sys.stdin.readline().strip()
+            if line == "START":
+                break
+            elif line == "STOP":
+                sys.exit(0)
+        except Exception:
+            pass
+    # =========================================================================
+
     threading.Thread(target=listen_for_commands, daemon=True).start()
 
     # Avvia monitoraggio
